@@ -12,3 +12,13 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
+
+class SupplierSerializer(serializers.ModelSerializer):
+    product_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = ['id', 'username', 'company_name', 'phone', 'product_count']
+
+    def get_product_count(self, obj):
+        return obj.products.filter(is_available=True).count()

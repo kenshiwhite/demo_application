@@ -13,7 +13,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['category', 'is_available']
+    filterset_fields = ['category', 'is_available', 'supplier']  # ← add supplier
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at']
 
