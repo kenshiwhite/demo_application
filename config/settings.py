@@ -68,6 +68,11 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 ROOT_URLCONF = 'config.urls'
 
+# Add to settings.py
+CSRF_TRUSTED_ORIGINS = [
+    'https://demo-application-1jpu.onrender.com',
+]
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
