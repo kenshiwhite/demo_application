@@ -23,6 +23,7 @@ class ProductSerializer(serializers.ModelSerializer):
             'unit', 'stock_quantity', 'is_available',
             'category', 'category_name',
             'supplier', 'supplier_name',
+            'image',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['supplier', 'created_at', 'updated_at']
