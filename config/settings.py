@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'requests',
     'notifications',
     'django_filters',
+    'storages'
 ]
 
 MIDDLEWARE = [
