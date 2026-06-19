@@ -45,10 +45,10 @@ INSTALLED_APPS = [
     'corsheaders',
     'users',
     'catalog',
+    'storages',
     'requests',
     'notifications',
     'django_filters',
-    'storages'
 ]
 
 MIDDLEWARE = [
