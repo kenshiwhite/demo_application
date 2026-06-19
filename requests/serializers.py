@@ -32,6 +32,7 @@ class ProductRequestSerializer(serializers.ModelSerializer):
             'id', 'product', 'product_name',
             'client', 'client_name',
             'quantity', 'note', 'status',
+            'total_price',                  # ← add this
             'response', 'created_at', 'updated_at'
         ]
         read_only_fields = ['client', 'status', 'created_at', 'updated_at']

@@ -32,8 +32,15 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
         return [permissions.IsAuthenticated()]
 
     def perform_create(self, serializer):
-        serializer.save(client=self.request.user)
-
+        product = serializer.validated_data['product']
+        quantity = serializer.validated_data['quantity']
+        total_price = product.price * quantity
+        product_request = serializer.save(
+            client=self.request.user,
+            total_price=total_price
+        )
+        notify_supplier_new_request(product_request)
+        
     # POST /api/requests/{id}/respond/
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsSupplier])
     def respond(self, request, pk=None):
