@@ -17,9 +17,19 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from django.conf import settings
+from django.conf.urls.static import static
+
 
 urlpatterns = [
+    path('admin/', admin.site.urls),       # ← add this
     path('api/auth/login/', TokenObtainPairView.as_view()),
     path('api/auth/refresh/', TokenRefreshView.as_view()),
     path('api/auth/', include('users.urls')),
+    path('api/catalog/', include('catalog.urls')),  # ← add this
+    path('api/requests/', include('requests.urls')),
+    path('api/notifications/', include('notifications.urls')),
 ]
+
+# add this at the very bottom of the file, outside urlpatterns
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
