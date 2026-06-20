@@ -1,6 +1,7 @@
-# Create your models here.
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+import random
+import string
 
 class User(AbstractUser):
     class Role(models.TextChoices):
@@ -11,3 +12,11 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=Role.choices)
     phone = models.CharField(max_length=20, blank=True)
     company_name = models.CharField(max_length=200, blank=True)
+    is_email_verified = models.BooleanField(default=False)
+    email_verification_code = models.CharField(max_length=6, blank=True)
+
+    def generate_verification_code(self):
+        code = ''.join(random.choices(string.digits, k=6))
+        self.email_verification_code = code
+        self.save()
+        return code

@@ -32,6 +32,11 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
         return [permissions.IsAuthenticated()]
 
     def create(self, request, *args, **kwargs):
+        if not request.user.is_email_verified:
+            return Response(
+                {'detail': 'Подтвердите email перед отправкой заявок'},
+                status=status.HTTP_403_FORBIDDEN
+            )
         items_data = request.data.get('items', [])
         if not items_data:
             return Response(

@@ -31,5 +31,7 @@ class ProductViewSet(viewsets.ModelViewSet):
         return [permissions.IsAuthenticated()]
 
     def perform_create(self, serializer):
-        # automatically assign the logged-in supplier as the owner
+        if not self.request.user.is_email_verified:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Подтвердите email перед добавлением товаров')
         serializer.save(supplier=self.request.user)
