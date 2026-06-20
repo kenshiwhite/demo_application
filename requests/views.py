@@ -1,7 +1,7 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import ProductRequest, SupplierResponse
+from .models import ProductRequest, RequestItem, SupplierResponse
 from .serializers import ProductRequestSerializer, SupplierResponseSerializer
 from users.permissions import IsSupplier, IsClient
 from notifications.services import (
@@ -9,6 +9,7 @@ from notifications.services import (
     notify_client_response,
     notify_client_status_update
 )
+from catalog.models import Product
 
 class ProductRequestViewSet(viewsets.ModelViewSet):
     serializer_class = ProductRequestSerializer
@@ -17,11 +18,11 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.role == 'supplier':
             return ProductRequest.objects.filter(
-                product__supplier=user
-            ).select_related('client', 'product', 'response')
+                supplier=user
+            ).prefetch_related('items__product').select_related('client', 'supplier', 'response')
         return ProductRequest.objects.filter(
             client=user
-        ).select_related('client', 'product', 'response')
+        ).prefetch_related('items__product').select_related('client', 'supplier', 'response')
 
     def get_permissions(self):
         if self.action == 'create':
@@ -30,26 +31,72 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated(), IsSupplier()]
         return [permissions.IsAuthenticated()]
 
-    def perform_create(self, serializer):
-        product = serializer.validated_data['product']
-        quantity = serializer.validated_data['quantity']
-
-        if quantity > product.stock_quantity:
-            from rest_framework.exceptions import ValidationError
-            raise ValidationError(
-                f'Недостаточно товара. Доступно: {product.stock_quantity}'
+    def create(self, request, *args, **kwargs):
+        items_data = request.data.get('items', [])
+        if not items_data:
+            return Response(
+                {'detail': 'Заявка должна содержать хотя бы один товар.'},
+                status=status.HTTP_400_BAD_REQUEST
             )
 
-        total_price = product.price * quantity
-        product_request = serializer.save(
-            client=self.request.user,
-            total_price=total_price
+        # validate all products belong to the same supplier
+        supplier_ids = set()
+        products = []
+        for item in items_data:
+            try:
+                product = Product.objects.get(id=item['product_id'])
+                products.append((product, item['quantity']))
+                supplier_ids.add(product.supplier.id)
+            except Product.DoesNotExist:
+                return Response(
+                    {'detail': f'Товар {item["product_id"]} не найден.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        if len(supplier_ids) > 1:
+            return Response(
+                {'detail': 'Все товары в заявке должны быть от одного поставщика.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # check stock for all items
+        for product, quantity in products:
+            if quantity > product.stock_quantity:
+                return Response(
+                    {'detail': f'Недостаточно товара "{product.name}". Доступно: {product.stock_quantity}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        # calculate total
+        total_price = sum(product.price * quantity for product, quantity in products)
+
+        # create request
+        product_request = ProductRequest.objects.create(
+            client=request.user,
+            supplier=products[0][0].supplier,
+            note=request.data.get('note', ''),
+            delivery_address=request.data.get('delivery_address', ''),
+            desired_delivery_date=request.data.get('desired_delivery_date') or None,
+            contact_phone=request.data.get('contact_phone', ''),
+            total_price=total_price,
         )
+
+        # create items
+        for product, quantity in products:
+            RequestItem.objects.create(
+                request=product_request,
+                product=product,
+                quantity=quantity,
+                price_at_request=product.price,
+                total=product.price * quantity,
+            )
+
         notify_supplier_new_request(product_request)
+        serializer = self.get_serializer(product_request)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def partial_update(self, request, *args, **kwargs):
         product_request = self.get_object()
-        # only client can edit and only when pending
         if request.user.role == 'client':
             if product_request.status not in ['pending']:
                 return Response(
@@ -62,9 +109,9 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
     def respond(self, request, pk=None):
         product_request = self.get_object()
 
-        if product_request.product.supplier != request.user:
+        if product_request.supplier != request.user:
             return Response(
-                {'detail': 'Вы можете отвечать только на заявки своих товаров.'},
+                {'detail': 'Вы можете отвечать только на свои заявки.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
@@ -76,10 +123,7 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
 
         serializer = SupplierResponseSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save(
-                supplier=request.user,
-                request=product_request
-            )
+            serializer.save(supplier=request.user, request=product_request)
             product_request.status = ProductRequest.Status.ACCEPTED
             product_request.save()
             notify_client_response(product_request)
@@ -99,14 +143,15 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
             )
 
         if new_status == ProductRequest.Status.FULFILLED:
-            product = product_request.product
-            if product.stock_quantity < product_request.quantity:
-                return Response(
-                    {'detail': 'Недостаточно товара на складе.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            product.stock_quantity -= product_request.quantity
-            product.save()
+            for item in product_request.items.all():
+                product = item.product
+                if product.stock_quantity < item.quantity:
+                    return Response(
+                        {'detail': f'Недостаточно товара "{product.name}" на складе.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                product.stock_quantity -= item.quantity
+                product.save()
 
         product_request.status = new_status
         product_request.save()

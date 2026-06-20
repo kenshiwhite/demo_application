@@ -14,12 +14,13 @@ class ProductRequest(models.Model):
         on_delete=models.CASCADE,
         related_name='requests'
     )
-    product = models.ForeignKey(
-        Product,
+    supplier = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
-        related_name='requests'
+        related_name='received_requests',
+        null=True,
+        blank=True
     )
-    quantity = models.PositiveIntegerField()
     note = models.TextField(blank=True)
     status = models.CharField(
         max_length=20,
@@ -32,7 +33,6 @@ class ProductRequest(models.Model):
         null=True,
         blank=True
     )
-    # new fields
     delivery_address = models.TextField(blank=True)
     desired_delivery_date = models.DateField(null=True, blank=True)
     contact_phone = models.CharField(max_length=20, blank=True)
@@ -40,7 +40,27 @@ class ProductRequest(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.client.username} → {self.product.name} ({self.status})"
+        return f"{self.client.username} → {self.supplier} ({self.status})"
+
+
+class RequestItem(models.Model):
+    request = models.ForeignKey(
+        ProductRequest,
+        on_delete=models.CASCADE,
+        related_name='items'
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='request_items'
+    )
+    quantity = models.PositiveIntegerField()
+    price_at_request = models.DecimalField(max_digits=10, decimal_places=2)
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.product.name} x{self.quantity}"
+
 
 class SupplierResponse(models.Model):
     request = models.OneToOneField(
