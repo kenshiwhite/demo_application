@@ -84,3 +84,23 @@ class SupplierListView(generics.ListAPIView):
 
     def get_queryset(self):
         return User.objects.filter(role='supplier')
+
+class UpdateEmailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response(
+                {'detail': 'Введите email'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if User.objects.filter(email=email).exclude(id=request.user.id).exists():
+            return Response(
+                {'detail': 'Этот email уже используется'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        request.user.email = email
+        request.user.is_email_verified = False
+        request.user.save()
+        return Response({'detail': 'Email обновлён'})
