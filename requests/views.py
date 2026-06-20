@@ -9,17 +9,16 @@ from notifications.services import (
     notify_client_response,
     notify_client_status_update
 )
+
 class ProductRequestViewSet(viewsets.ModelViewSet):
     serializer_class = ProductRequestSerializer
 
     def get_queryset(self):
         user = self.request.user
         if user.role == 'supplier':
-            # supplier sees requests for their products
             return ProductRequest.objects.filter(
                 product__supplier=user
             ).select_related('client', 'product', 'response')
-        # client sees only their own requests
         return ProductRequest.objects.filter(
             client=user
         ).select_related('client', 'product', 'response')
@@ -35,7 +34,6 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
         product = serializer.validated_data['product']
         quantity = serializer.validated_data['quantity']
 
-        # check stock availability
         if quantity > product.stock_quantity:
             from rest_framework.exceptions import ValidationError
             raise ValidationError(
@@ -48,23 +46,31 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
             total_price=total_price
         )
         notify_supplier_new_request(product_request)
-        
-    # POST /api/requests/{id}/respond/
+
+    def partial_update(self, request, *args, **kwargs):
+        product_request = self.get_object()
+        # only client can edit and only when pending
+        if request.user.role == 'client':
+            if product_request.status not in ['pending']:
+                return Response(
+                    {'detail': 'Заявку нельзя редактировать после принятия поставщиком.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        return super().partial_update(request, *args, **kwargs)
+
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsSupplier])
     def respond(self, request, pk=None):
         product_request = self.get_object()
 
-        # make sure this supplier owns the product
         if product_request.product.supplier != request.user:
             return Response(
-                {'detail': 'You can only respond to requests for your own products.'},
+                {'detail': 'Вы можете отвечать только на заявки своих товаров.'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # check if response already exists
         if hasattr(product_request, 'response'):
             return Response(
-                {'detail': 'You have already responded to this request.'},
+                {'detail': 'Вы уже ответили на эту заявку.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -74,11 +80,9 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
                 supplier=request.user,
                 request=product_request
             )
-            # update request status to accepted
             product_request.status = ProductRequest.Status.ACCEPTED
             product_request.save()
-            notify_client_response(product_request)  # ← add this
-
+            notify_client_response(product_request)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -94,7 +98,6 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # decrease stock when fulfilled
         if new_status == ProductRequest.Status.FULFILLED:
             product = product_request.product
             if product.stock_quantity < product_request.quantity:
@@ -109,5 +112,3 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
         product_request.save()
         notify_client_status_update(product_request)
         return Response({'status': new_status})
-        
-        

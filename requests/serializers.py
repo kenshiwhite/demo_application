@@ -20,6 +20,14 @@ class ProductRequestSerializer(serializers.ModelSerializer):
         source='client.username',
         read_only=True
     )
+    client_phone = serializers.CharField(
+        source='client.phone',
+        read_only=True
+    )
+    client_company = serializers.CharField(
+        source='client.company_name',
+        read_only=True
+    )
     product_name = serializers.CharField(
         source='product.name',
         read_only=True
@@ -30,9 +38,12 @@ class ProductRequestSerializer(serializers.ModelSerializer):
         model = ProductRequest
         fields = [
             'id', 'product', 'product_name',
-            'client', 'client_name',
+            'client', 'client_name', 'client_phone', 'client_company',
             'quantity', 'note', 'status',
-            'total_price',                  # ← add this
+            'total_price',
+            'delivery_address',
+            'desired_delivery_date',
+            'contact_phone',
             'response', 'created_at', 'updated_at'
         ]
         read_only_fields = ['client', 'status', 'created_at', 'updated_at']
