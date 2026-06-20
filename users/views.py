@@ -5,6 +5,7 @@ from rest_framework import status
 from django.contrib.auth import get_user_model
 from .serializers import RegisterSerializer, SupplierSerializer
 from .email import send_verification_email
+import threading
 
 User = get_user_model()
 
@@ -15,7 +16,15 @@ class RegisterView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         user = serializer.save()
-        # send verification email after registration
+        # send email in background thread so registration doesn't block
+        thread = threading.Thread(
+            target=self._send_email_async,
+            args=(user,)
+        )
+        thread.daemon = True
+        thread.start()
+
+    def _send_email_async(self, user):
         try:
             send_verification_email(user)
         except Exception as e:
