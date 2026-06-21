@@ -67,8 +67,9 @@ class ResendVerificationView(APIView):
             send_verification_email(user)
             return Response({'detail': 'Код отправлен повторно'})
         except Exception as e:
+            print(f'Resend verification error: {str(e)}')
             return Response(
-                {'detail': 'Не удалось отправить письмо'},
+                {'detail': f'Не удалось отправить письмо: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
