@@ -8,7 +8,6 @@ from django.conf import settings
 def send_verification_email(user):
     code = user.generate_verification_code()
     
-    # encode credentials for basic auth
     credentials = base64.b64encode(
         f'api:{settings.MAILGUN_API_KEY}'.encode()
     ).decode()
@@ -19,7 +18,8 @@ def send_verification_email(user):
         'subject': 'Подтверждение email — SupplierApp',
         'text': f'Здравствуйте, {user.username}!\n\nВаш код подтверждения: {code}\n\nВведите этот код в приложении.\nКод действителен 10 минут.',
     }).encode('utf-8')
-    
+
+    # new Mailgun uses api.eu.mailgun.net for EU or api.mailgun.net for US
     req = urllib.request.Request(
         f'https://api.mailgun.net/v3/{settings.MAILGUN_DOMAIN}/messages',
         data=data,
