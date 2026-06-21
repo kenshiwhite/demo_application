@@ -1,34 +1,36 @@
-import smtplib
-import ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import urllib.request
+import urllib.error
+import json
 from django.conf import settings
 
 def send_verification_email(user):
     code = user.generate_verification_code()
 
-    msg = MIMEMultipart()
-    msg['From'] = settings.EMAIL_HOST_USER
-    msg['To'] = user.email
-    msg['Subject'] = 'Подтверждение email — SupplierApp'
+    data = json.dumps({
+        'From': '221439@astanait.edu.kz',
+        'To': user.email,
+        'Subject': 'Подтверждение email — SupplierApp',
+        'TextBody': f'Здравствуйте, {user.username}!\n\nВаш код подтверждения: {code}\n\nВведите этот код в приложении.\nКод действителен 10 минут.',
+        'MessageStream': 'outbound'
+    }).encode('utf-8')
 
-    body = f'''Здравствуйте, {user.username}!
-
-Ваш код подтверждения: {code}
-
-Введите этот код в приложении.
-Код действителен 10 минут.'''
-
-    msg.attach(MIMEText(body, 'plain'))
-
-    context = ssl.create_default_context()
+    req = urllib.request.Request(
+        'https://api.postmarkapp.com/email',
+        data=data,
+        headers={
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Postmark-Server-Token': settings.POSTMARK_API_KEY,
+        },
+        method='POST'
+    )
 
     try:
-        with smtplib.SMTP_SSL('smtp.gmail.com', 465, context=context) as server:
-            server.login(settings.EMAIL_HOST_USER, settings.EMAIL_HOST_PASSWORD)
-            server.sendmail(settings.EMAIL_HOST_USER, user.email, msg.as_string())
-            print(f'Email sent successfully to {user.email}')
+        with urllib.request.urlopen(req) as response:
+            result = json.loads(response.read().decode())
+            print(f'Postmark success: {result}')
             return code
-    except Exception as e:
-        print(f'Gmail error: {str(e)}')
-        raise Exception(f'Gmail error: {str(e)}')
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode()
+        print(f'Postmark error {e.code}: {error_body}')
+        raise Exception(f'Postmark error {e.code}: {error_body}')
