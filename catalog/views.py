@@ -1,3 +1,8 @@
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from users.permissions import IsSupplier
+from .analytics import get_supplier_analytics
 from rest_framework import viewsets, permissions
 from .models import Category, Product
 from .serializers import CategorySerializer, ProductSerializer
@@ -35,3 +40,11 @@ class ProductViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('Подтвердите email перед добавлением товаров')
         serializer.save(supplier=self.request.user)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated, IsSupplier])
+def supplier_analytics(request):
+    period = int(request.query_params.get('period', 30))
+    data = get_supplier_analytics(request.user, period)
+    return Response(data)

@@ -15,4 +15,5 @@ urlpatterns = [
     path('me/update/', UpdateEmailView.as_view()),
     path('verify-email/', VerifyEmailView.as_view()),
     path('resend-verification/', ResendVerificationView.as_view()),
+    
 ]
