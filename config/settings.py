@@ -217,5 +217,4 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='SupplierApp <noreply@gmail.com>')
 EMAIL_TIMEOUT = 10
-MAILGUN_API_KEY = config('MAILGUN_API_KEY', default='')
-MAILGUN_DOMAIN = config('MAILGUN_DOMAIN', default='')
+BREVO_API_KEY = config('BREVO_API_KEY', default='')
