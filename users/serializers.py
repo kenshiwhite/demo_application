@@ -18,7 +18,10 @@ class SupplierSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'company_name', 'phone', 'product_count']
+        fields = [
+            'id', 'username', 'company_name',
+            'phone', 'description', 'product_count'
+        ]
 
     def get_product_count(self, obj):
         return obj.products.filter(is_available=True).count()
@@ -28,9 +31,8 @@ class ProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'role',
-            'company_name', 'phone',
-            'is_email_verified',
-            'date_joined',
+            'company_name', 'phone', 'description',
+            'is_email_verified', 'date_joined',
         ]
         read_only_fields = ['id', 'username', 'role', 'is_email_verified', 'date_joined']
 
