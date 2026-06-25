@@ -18,7 +18,7 @@ def notify_supplier_new_request(request_obj):
     body = f'{client.company_name or client.username} отправил заявку на {request_obj.items.count()} товар(ов)'
 
     Notification.objects.create(
-        user=supplier,
+        recipient=supplier,
         title=title,
         message=body,
         notification_type='new_request',
@@ -35,7 +35,7 @@ def notify_client_response(request_obj):
     body = f'{supplier.company_name or supplier.username} ответил на вашу заявку #{request_obj.id}'
 
     Notification.objects.create(
-        user=client,
+        recipient=client,
         title=title,
         message=body,
         notification_type='new_response',
@@ -58,7 +58,7 @@ def notify_client_status_update(request_obj):
     body = f'{supplier.company_name or supplier.username} обновил статус вашей заявки'
 
     Notification.objects.create(
-        user=client,
+        recipient=client,
         title=title,
         message=body,
         notification_type=f'request_{request_obj.status}',
