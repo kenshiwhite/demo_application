@@ -15,8 +15,10 @@ class User(AbstractUser):
     description = models.TextField(blank=True)
     is_email_verified = models.BooleanField(default=False)
     email_verification_code = models.CharField(max_length=6, blank=True)
+    expo_push_token = models.CharField(max_length=200, blank=True)
 
     def generate_verification_code(self):
+        import random, string
         code = ''.join(random.choices(string.digits, k=6))
         self.email_verification_code = code
         self.save()

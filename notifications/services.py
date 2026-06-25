@@ -1,31 +1,69 @@
 from .models import Notification
+from .push import send_push_notification
+import threading
 
-def notify_supplier_new_request(product_request):
-    supplier = product_request.supplier
-    item_count = product_request.items.count()
+def _send_push_async(user, title, body, data=None):
+    if user.expo_push_token:
+        thread = threading.Thread(
+            target=send_push_notification,
+            args=(user.expo_push_token, title, body, data)
+        )
+        thread.daemon = True
+        thread.start()
+
+def notify_supplier_new_request(request_obj):
+    supplier = request_obj.supplier
+    client = request_obj.client
+    title = 'Новая заявка'
+    body = f'{client.company_name or client.username} отправил заявку на {request_obj.items.count()} товар(ов)'
+
     Notification.objects.create(
-        recipient=supplier,
-        notification_type=Notification.Type.NEW_REQUEST,
-        title='Новая заявка',
-        message=f'{product_request.client.username} оформил заявку на {item_count} товар(ов) на сумму {int(product_request.total_price):,} ₸'
+        user=supplier,
+        title=title,
+        message=body,
+        notification_type='new_request',
     )
+    _send_push_async(supplier, title, body, {
+        'type': 'new_request',
+        'request_id': request_obj.id,
+    })
 
-def notify_client_response(product_request):
+def notify_client_response(request_obj):
+    client = request_obj.client
+    supplier = request_obj.supplier
+    title = 'Ответ на заявку'
+    body = f'{supplier.company_name or supplier.username} ответил на вашу заявку #{request_obj.id}'
+
     Notification.objects.create(
-        recipient=product_request.client,
-        notification_type=Notification.Type.NEW_RESPONSE,
-        title='Поставщик ответил на вашу заявку',
-        message=f'Ваша заявка от {product_request.supplier.company_name or product_request.supplier.username} принята'
+        user=client,
+        title=title,
+        message=body,
+        notification_type='new_response',
     )
+    _send_push_async(client, title, body, {
+        'type': 'new_response',
+        'request_id': request_obj.id,
+    })
 
-def notify_client_status_update(product_request):
-    status_messages = {
-        'fulfilled': 'Ваш заказ выполнен',
-        'declined': 'Ваша заявка отклонена',
+def notify_client_status_update(request_obj):
+    client = request_obj.client
+    supplier = request_obj.supplier
+    status_labels = {
+        'accepted': 'принята',
+        'declined': 'отклонена',
+        'fulfilled': 'выполнена',
     }
+    status_label = status_labels.get(request_obj.status, request_obj.status)
+    title = f'Заявка #{request_obj.id} {status_label}'
+    body = f'{supplier.company_name or supplier.username} обновил статус вашей заявки'
+
     Notification.objects.create(
-        recipient=product_request.client,
-        notification_type=f'request_{product_request.status}',
-        title=status_messages.get(product_request.status, 'Заявка обновлена'),
-        message=f'Заявка от {product_request.supplier.company_name or product_request.supplier.username} теперь имеет статус: {product_request.status}'
+        user=client,
+        title=title,
+        message=body,
+        notification_type=f'request_{request_obj.status}',
     )
+    _send_push_async(client, title, body, {
+        'type': f'request_{request_obj.status}',
+        'request_id': request_obj.id,
+    })

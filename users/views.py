@@ -131,3 +131,17 @@ class SupplierDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         return User.objects.filter(role='supplier')
+    
+class UpdatePushTokenView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        token = request.data.get('expo_push_token')
+        if not token:
+            return Response(
+                {'detail': 'Token required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        request.user.expo_push_token = token
+        request.user.save()
+        return Response({'detail': 'Token saved'})
