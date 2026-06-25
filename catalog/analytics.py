@@ -1,7 +1,7 @@
 from django.db.models import Sum, Count, Avg, F
 from django.utils import timezone
 from datetime import timedelta
-from requests.models import ProductRequest, RequestItem
+from product_requests.models import ProductRequest, RequestItem
 
 
 def get_supplier_analytics(supplier, period_days=30):

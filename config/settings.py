@@ -46,7 +46,7 @@ INSTALLED_APPS = [
     'users',
     'catalog',
     'storages',
-    'requests',
+    'product_requests',
     'notifications',
     'django_filters',
 ]
