@@ -4,16 +4,18 @@ from rest_framework.response import Response
 from users.permissions import IsSupplier
 from .analytics import get_supplier_analytics
 from rest_framework import viewsets, permissions
-from .models import Category, Product
-from .serializers import CategorySerializer, ProductSerializer
+from .models import Product, CATEGORY_CHOICES
+from .serializers import ProductSerializer
 from users.permissions import IsSupplier
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
-class CategoryViewSet(viewsets.ModelViewSet):
-    queryset = Category.objects.all()
-    serializer_class = CategorySerializer
-    permission_classes = [permissions.IsAuthenticated]
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_categories(request):
+    categories = [{'value': v, 'label': l} for v, l in CATEGORY_CHOICES]
+    return Response(categories)
+
 
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
