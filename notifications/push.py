@@ -5,7 +5,6 @@ from exponent_server_sdk import (
     PushServerError,
     PushTicketError,
 )
-from requests.exceptions import ConnectionError, HTTPError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -32,7 +31,7 @@ def send_push_notification(expo_token, title, body, data=None):
     except DeviceNotRegisteredError:
         logger.warning(f'Device not registered: {expo_token}')
         return False
-    except (PushServerError, PushTicketError, ConnectionError, HTTPError) as e:
+    except (PushServerError, PushTicketError) as e:
         logger.error(f'Push notification error: {str(e)}')
         return False
     except Exception as e:
