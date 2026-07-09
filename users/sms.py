@@ -62,10 +62,21 @@ def send_sms(phone, message):
 
 def send_phone_verification_code(user):
     code = user.generate_phone_verification_code()
-    result = send_sms(
-        user.phone,
-        f'InStock verification code: {code}',
-    )
+    try:
+        result = send_sms(
+            user.phone,
+            f'InStock verification code: {code}',
+        )
+    except Exception as exc:
+        if not getattr(settings, 'SMS_DEBUG_CODES', False):
+            raise
+        logger.warning(
+            'SMS delivery failed for %s, returning debug code: %s',
+            user.phone,
+            exc,
+        )
+        result = {'debug': True, 'sent': False, 'error': str(exc)}
+
     if result.get('debug'):
         result['code'] = code
     return result
