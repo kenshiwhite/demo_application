@@ -1,5 +1,5 @@
-from django.contrib.auth import get_user_model
 from rest_framework import serializers
+from django.contrib.auth import get_user_model
 from users.models import KAZAKHSTAN_CITIES
 
 User = get_user_model()
@@ -19,7 +19,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 class SupplierSerializer(serializers.ModelSerializer):
     product_count = serializers.SerializerMethodField()
-    city_display = serializers.CharField(source='get_city_display', read_only=True)
+    city_display = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -32,8 +32,11 @@ class SupplierSerializer(serializers.ModelSerializer):
     def get_product_count(self, obj):
         return obj.products.filter(is_available=True).count()
 
+    def get_city_display(self, obj):
+        return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)
+
 class ProfileSerializer(serializers.ModelSerializer):
-    city_display = serializers.CharField(source='get_city_display', read_only=True)
+    city_display = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -47,6 +50,9 @@ class ProfileSerializer(serializers.ModelSerializer):
             'id', 'username', 'role',
             'is_email_verified', 'date_joined'
         ]
+
+    def get_city_display(self, obj):
+        return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)
 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(required=True)
