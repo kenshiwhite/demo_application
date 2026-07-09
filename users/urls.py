@@ -3,7 +3,7 @@ from .views import (
     RegisterView, SupplierListView, SupplierDetailView,
     MeView, ProfileView, ChangePasswordView,
     VerifyEmailView, ResendVerificationView,
-    UpdateEmailView, UpdatePushTokenView
+    UpdateEmailView, UpdatePushTokenView, get_cities
 )
 
 urlpatterns = [
@@ -17,4 +17,5 @@ urlpatterns = [
     path('push-token/', UpdatePushTokenView.as_view()),
     path('verify-email/', VerifyEmailView.as_view()),
     path('resend-verification/', ResendVerificationView.as_view()),
+    path('cities/', get_cities),
 ]

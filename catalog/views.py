@@ -20,17 +20,20 @@ def get_categories(request):
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['category', 'is_available', 'supplier']  # ← add supplier
+    filterset_fields = ['category', 'is_available', 'supplier']
     search_fields = ['name', 'description']
-    ordering_fields = ['price', 'created_at']
+    ordering_fields = ['price', 'created_at', 'stock_quantity']
 
     def get_queryset(self):
         user = self.request.user
-        # suppliers only see their own products
-        # clients see all available products
         if user.role == 'supplier':
             return Product.objects.filter(supplier=user)
-        return Product.objects.filter(is_available=True)
+
+        qs = Product.objects.filter(is_available=True)
+        city = self.request.query_params.get('city')
+        if city:
+            qs = qs.filter(supplier__city=city)
+        return qs
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:

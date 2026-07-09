@@ -1,15 +1,23 @@
 from rest_framework import generics, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth import get_user_model
 from .serializers import (
     RegisterSerializer, SupplierSerializer,
     ProfileSerializer, ChangePasswordSerializer
 )
 from .email import send_verification_email
+from users.models import KAZAKHSTAN_CITIES
 import threading
 
 User = get_user_model()
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def get_cities(request):
+    cities = [{'value': v, 'label': l} for v, l in KAZAKHSTAN_CITIES]
+    return Response(cities)
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -51,10 +59,7 @@ class ResendVerificationView(APIView):
         if user.is_email_verified:
             return Response({'detail': 'Email уже подтверждён'})
         code = user.generate_verification_code()
-        return Response({
-            'detail': 'Код сгенерирован',
-            'code': code
-        })
+        return Response({'detail': 'Код сгенерирован', 'code': code})
 
 class MeView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -72,9 +77,7 @@ class ProfileView(APIView):
 
     def patch(self, request):
         serializer = ProfileSerializer(
-            request.user,
-            data=request.data,
-            partial=True
+            request.user, data=request.data, partial=True
         )
         if serializer.is_valid():
             serializer.save()
@@ -118,20 +121,6 @@ class UpdateEmailView(APIView):
         request.user.save()
         return Response({'detail': 'Email обновлён'})
 
-class SupplierListView(generics.ListAPIView):
-    serializer_class = SupplierSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return User.objects.filter(role='supplier')
-
-class SupplierDetailView(generics.RetrieveAPIView):
-    serializer_class = SupplierSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return User.objects.filter(role='supplier')
-    
 class UpdatePushTokenView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -145,3 +134,21 @@ class UpdatePushTokenView(APIView):
         request.user.expo_push_token = token
         request.user.save()
         return Response({'detail': 'Token saved'})
+
+class SupplierListView(generics.ListAPIView):
+    serializer_class = SupplierSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = User.objects.filter(role='supplier')
+        city = self.request.query_params.get('city')
+        if city:
+            qs = qs.filter(city=city)
+        return qs
+
+class SupplierDetailView(generics.RetrieveAPIView):
+    serializer_class = SupplierSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return User.objects.filter(role='supplier')
