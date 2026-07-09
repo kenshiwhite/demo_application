@@ -3,15 +3,52 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth import get_user_model
+from django.utils import timezone
+from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
     RegisterSerializer, SupplierSerializer,
     ProfileSerializer, ChangePasswordSerializer
 )
 from .email import send_verification_email
+from .sms import normalize_phone, send_phone_verification_code
 from users.models import KAZAKHSTAN_CITIES
 import threading
+import logging
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
+
+
+def verify_phone_code(user, code, allow_already_verified=False):
+    if user.is_phone_verified and allow_already_verified:
+        return None
+    if not code:
+        return 'Enter the verification code'
+    if user.phone_verification_attempts >= 5:
+        return 'Too many attempts. Request a new code.'
+    if not user.phone_verification_code:
+        return 'Request a new verification code'
+    if (
+        user.phone_verification_expires_at and
+        user.phone_verification_expires_at < timezone.now()
+    ):
+        return 'Verification code expired'
+    if user.phone_verification_code != code:
+        user.phone_verification_attempts += 1
+        user.save(update_fields=['phone_verification_attempts'])
+        return 'Invalid verification code'
+
+    user.is_phone_verified = True
+    user.phone_verification_code = ''
+    user.phone_verification_expires_at = None
+    user.phone_verification_attempts = 0
+    user.save(update_fields=[
+        'is_phone_verified',
+        'phone_verification_code',
+        'phone_verification_expires_at',
+        'phone_verification_attempts',
+    ])
+    return None
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
@@ -27,6 +64,113 @@ class RegisterView(generics.CreateAPIView):
     def perform_create(self, serializer):
         user = serializer.save()
         user.generate_verification_code()
+        try:
+            send_phone_verification_code(user)
+        except Exception as exc:
+            logger.warning('Failed to send phone verification code: %s', exc)
+
+
+class SendPhoneVerificationView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        if not user.phone:
+            return Response(
+                {'detail': 'Phone number is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if user.is_phone_verified:
+            return Response({'detail': 'Phone number is already verified'})
+
+        try:
+            result = send_phone_verification_code(user)
+        except Exception:
+            logger.exception('Failed to send phone verification code')
+            return Response(
+                {'detail': 'Failed to send SMS code'},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        data = {'detail': 'Verification code sent'}
+        if result.get('code'):
+            data['code'] = result['code']
+        return Response(data)
+
+
+class VerifyPhoneView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        error = verify_phone_code(
+            request.user,
+            request.data.get('code'),
+            allow_already_verified=True
+        )
+        if error:
+            return Response({'detail': error}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'detail': 'Phone number verified'})
+
+
+class PhoneLoginRequestView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        try:
+            phone = normalize_phone(request.data.get('phone', ''))
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(phone=phone)
+        except User.DoesNotExist:
+            return Response(
+                {'detail': 'No account found for this phone number'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            result = send_phone_verification_code(user)
+        except Exception:
+            logger.exception('Failed to send phone login code')
+            return Response(
+                {'detail': 'Failed to send SMS code'},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        data = {'detail': 'Login code sent'}
+        if result.get('code'):
+            data['code'] = result['code']
+        return Response(data)
+
+
+class PhoneLoginVerifyView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        try:
+            phone = normalize_phone(request.data.get('phone', ''))
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(phone=phone)
+        except User.DoesNotExist:
+            return Response(
+                {'detail': 'No account found for this phone number'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        error = verify_phone_code(user, request.data.get('code'))
+        if error:
+            return Response({'detail': error}, status=status.HTTP_400_BAD_REQUEST)
+
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'user': ProfileSerializer(user).data,
+        })
 
 class VerifyEmailView(APIView):
     permission_classes = [permissions.IsAuthenticated]

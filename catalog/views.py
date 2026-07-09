@@ -41,9 +41,9 @@ class ProductViewSet(viewsets.ModelViewSet):
         return [permissions.IsAuthenticated()]
 
     def perform_create(self, serializer):
-        if not self.request.user.is_email_verified:
+        if not self.request.user.is_phone_verified:
             from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied('Подтвердите email перед добавлением товаров')
+            raise PermissionDenied('Verify your phone number before adding products')
         serializer.save(supplier=self.request.user)
 
 

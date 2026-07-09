@@ -219,3 +219,8 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='SupplierApp <noreply@
 EMAIL_TIMEOUT = 10
 BREVO_API_KEY = config('BREVO_API_KEY', default='')
 POSTMARK_API_KEY = config('POSTMARK_API_KEY', default='')
+
+# SMSC.kz settings
+SMSC_LOGIN = config('SMSC_LOGIN', default='')
+SMSC_PASSWORD = config('SMSC_PASSWORD', default='')
+SMSC_SENDER = config('SMSC_SENDER', default='')

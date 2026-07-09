@@ -1,5 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
+from datetime import timedelta
 import random
 import string
 KAZAKHSTAN_CITIES = [
@@ -37,6 +39,10 @@ class User(AbstractUser):
     description = models.TextField(blank=True)
     is_email_verified = models.BooleanField(default=False)
     email_verification_code = models.CharField(max_length=6, blank=True)
+    is_phone_verified = models.BooleanField(default=False)
+    phone_verification_code = models.CharField(max_length=6, blank=True)
+    phone_verification_expires_at = models.DateTimeField(null=True, blank=True)
+    phone_verification_attempts = models.PositiveSmallIntegerField(default=0)
     expo_push_token = models.CharField(max_length=200, blank=True)
     city = models.CharField(
         max_length=50,
@@ -51,3 +57,25 @@ class User(AbstractUser):
         self.email_verification_code = code
         self.save()
         return code
+
+    def generate_phone_verification_code(self):
+        code = ''.join(random.choices(string.digits, k=6))
+        self.phone_verification_code = code
+        self.phone_verification_expires_at = timezone.now() + timedelta(minutes=10)
+        self.phone_verification_attempts = 0
+        self.save(update_fields=[
+            'phone_verification_code',
+            'phone_verification_expires_at',
+            'phone_verification_attempts',
+        ])
+        return code
+
+    def clear_phone_verification_code(self):
+        self.phone_verification_code = ''
+        self.phone_verification_expires_at = None
+        self.phone_verification_attempts = 0
+        self.save(update_fields=[
+            'phone_verification_code',
+            'phone_verification_expires_at',
+            'phone_verification_attempts',
+        ])

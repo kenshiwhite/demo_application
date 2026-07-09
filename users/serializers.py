@@ -1,11 +1,13 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from users.models import KAZAKHSTAN_CITIES
+from .sms import normalize_phone
 
 User = get_user_model()
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
+    phone = serializers.CharField(required=True, allow_blank=False)
 
     class Meta:
         model = User
@@ -15,7 +17,14 @@ class RegisterSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
+        validated_data['phone'] = normalize_phone(validated_data['phone'])
         return User.objects.create_user(**validated_data)
+
+    def validate_phone(self, value):
+        phone = normalize_phone(value)
+        if User.objects.filter(phone=phone).exists():
+            raise serializers.ValidationError('This phone number is already registered.')
+        return phone
 
 class SupplierSerializer(serializers.ModelSerializer):
     product_count = serializers.SerializerMethodField()
@@ -43,13 +52,27 @@ class ProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'role',
             'company_name', 'phone', 'description',
-            'is_email_verified', 'date_joined',
+            'is_email_verified', 'is_phone_verified', 'date_joined',
             'city', 'city_display'
         ]
         read_only_fields = [
             'id', 'username', 'role',
-            'is_email_verified', 'date_joined'
+            'is_email_verified', 'is_phone_verified', 'date_joined'
         ]
+
+    def validate_phone(self, value):
+        phone = normalize_phone(value)
+        if User.objects.filter(phone=phone).exclude(id=self.instance.id).exists():
+            raise serializers.ValidationError('This phone number is already registered.')
+        return phone
+
+    def update(self, instance, validated_data):
+        if 'phone' in validated_data and validated_data['phone'] != instance.phone:
+            validated_data['is_phone_verified'] = False
+            validated_data['phone_verification_code'] = ''
+            validated_data['phone_verification_expires_at'] = None
+            validated_data['phone_verification_attempts'] = 0
+        return super().update(instance, validated_data)
 
     def get_city_display(self, obj):
         return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)
