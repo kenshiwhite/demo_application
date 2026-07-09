@@ -21,6 +21,10 @@ def normalize_phone(phone):
     return f'+{digits}'
 
 
+def format_phone_for_smsc(phone):
+    return normalize_phone(phone).lstrip('+')
+
+
 def send_sms(phone, message):
     login = getattr(settings, 'SMSC_LOGIN', '')
     password = getattr(settings, 'SMSC_PASSWORD', '')
@@ -33,7 +37,7 @@ def send_sms(phone, message):
     params = {
         'login': login,
         'psw': password,
-        'phones': phone,
+        'phones': format_phone_for_smsc(phone),
         'mes': message,
         'fmt': 3,
         'charset': 'utf-8',
@@ -50,6 +54,7 @@ def send_sms(phone, message):
     data = response.json()
 
     if data.get('error'):
+        logger.warning('SMSC rejected message for %s: %s', phone, data)
         raise RuntimeError(data.get('error'))
 
     return data
