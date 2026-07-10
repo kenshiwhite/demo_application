@@ -1,7 +1,7 @@
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from users.permissions import IsSupplier
+from users.permissions import IsSupplier, IsSupplierStaff
 from .analytics import get_supplier_analytics
 from rest_framework import viewsets, permissions
 from .models import Product, CATEGORY_CHOICES
@@ -26,8 +26,9 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if user.role == 'supplier':
-            return Product.objects.filter(supplier=user)
+        if user.role in ['supplier', 'sales_rep']:
+            supplier = user if user.role == 'supplier' else user.business_supplier
+            return Product.objects.filter(supplier=supplier)
 
         qs = Product.objects.filter(is_available=True)
         city = self.request.query_params.get('city')

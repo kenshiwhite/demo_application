@@ -5,7 +5,8 @@ from .views import (
     VerifyEmailView, ResendVerificationView,
     UpdateEmailView, UpdatePushTokenView, get_cities,
     SendPhoneVerificationView, VerifyPhoneView,
-    PhoneLoginRequestView, PhoneLoginVerifyView
+    PhoneLoginRequestView, PhoneLoginVerifyView, WorkerListCreateView,
+    BusinessClientListCreateView
 )
 
 urlpatterns = [
@@ -24,4 +25,6 @@ urlpatterns = [
     path('phone-login/request/', PhoneLoginRequestView.as_view()),
     path('phone-login/verify/', PhoneLoginVerifyView.as_view()),
     path('cities/', get_cities),
+    path('workers/', WorkerListCreateView.as_view()),
+    path('business-clients/', BusinessClientListCreateView.as_view()),
 ]

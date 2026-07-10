@@ -21,6 +21,13 @@ class ProductRequest(models.Model):
         null=True,
         blank=True
     )
+    sales_rep = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='created_requests',
+        null=True,
+        blank=True
+    )
     note = models.TextField(blank=True)
     status = models.CharField(
         max_length=20,

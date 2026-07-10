@@ -3,7 +3,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import ProductRequest, RequestItem, SupplierResponse
 from .serializers import ProductRequestSerializer, SupplierResponseSerializer
-from users.permissions import IsSupplier, IsClient
+from users.permissions import IsSupplier, IsClient, IsSupplierStaff
+from django.contrib.auth import get_user_model
+from django.db.models import Q
 from notifications.services import (
     notify_supplier_new_request,
     notify_client_response,
@@ -11,14 +13,21 @@ from notifications.services import (
 )
 from catalog.models import Product
 
+User = get_user_model()
+
+
+def supplier_business(user):
+    return user if user.role == User.Role.SUPPLIER else user.business_supplier
+
 class ProductRequestViewSet(viewsets.ModelViewSet):
     serializer_class = ProductRequestSerializer
 
     def get_queryset(self):
         user = self.request.user
-        if user.role == 'supplier':
+        business = supplier_business(user)
+        if business:
             return ProductRequest.objects.filter(
-                supplier=user
+                supplier=business
             ).prefetch_related('items__product').select_related('client', 'supplier', 'response')
         return ProductRequest.objects.filter(
             client=user
@@ -26,12 +35,15 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action == 'create':
-            return [permissions.IsAuthenticated(), IsClient()]
+            return [permissions.IsAuthenticated()]
         if self.action in ['respond', 'update_status']:
-            return [permissions.IsAuthenticated(), IsSupplier()]
+            return [permissions.IsAuthenticated(), IsSupplierStaff()]
         return [permissions.IsAuthenticated()]
 
     def create(self, request, *args, **kwargs):
+        is_sales_rep = request.user.role == User.Role.SALES_REP
+        if request.user.role != User.Role.CLIENT and not is_sales_rep:
+            return Response({'detail': 'Only clients or sales representatives can create requests.'}, status=status.HTTP_403_FORBIDDEN)
         if not request.user.is_phone_verified:
             return Response(
                 {'detail': 'Verify your phone number before sending requests'},
@@ -64,6 +76,21 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        supplier = products[0][0].supplier
+        if is_sales_rep and supplier != request.user.business_supplier:
+            return Response({'detail': 'You can only create requests for your supplier business.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if is_sales_rep:
+            client_id = request.data.get('client_id')
+            try:
+                client_user = User.objects.get(id=client_id, role=User.Role.CLIENT)
+            except (User.DoesNotExist, ValueError, TypeError):
+                return Response({'detail': 'Choose a valid client.'}, status=status.HTTP_400_BAD_REQUEST)
+            if client_user.assigned_sales_rep_id not in [None, request.user.id] and not client_user.requests.filter(supplier=supplier).exists():
+                return Response({'detail': 'This client is assigned to another representative.'}, status=status.HTTP_403_FORBIDDEN)
+        else:
+            client_user = request.user
+
         # check stock for all items
         for product, quantity in products:
             if quantity > product.stock_quantity:
@@ -77,8 +104,9 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
 
         # create request
         product_request = ProductRequest.objects.create(
-            client=request.user,
-            supplier=products[0][0].supplier,
+            client=client_user,
+            supplier=supplier,
+            sales_rep=request.user if is_sales_rep else None,
             note=request.data.get('note', ''),
             delivery_address=request.data.get('delivery_address', ''),
             desired_delivery_date=request.data.get('desired_delivery_date') or None,
@@ -114,7 +142,7 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
     def respond(self, request, pk=None):
         product_request = self.get_object()
 
-        if product_request.supplier != request.user:
+        if product_request.supplier != supplier_business(request.user):
             return Response(
                 {'detail': 'Вы можете отвечать только на свои заявки.'},
                 status=status.HTTP_403_FORBIDDEN

@@ -4,10 +4,11 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from django.db.models import Q, Count
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
     RegisterSerializer, SupplierSerializer,
-    ProfileSerializer, ChangePasswordSerializer
+    ProfileSerializer, ChangePasswordSerializer, BusinessMemberSerializer
 )
 from .email import send_verification_email
 from .sms import normalize_phone, send_phone_verification_code
@@ -296,3 +297,90 @@ class SupplierDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         return User.objects.filter(role='supplier')
+
+
+def supplier_business(user):
+    return user if user.role == User.Role.SUPPLIER else user.business_supplier
+
+
+class WorkerListCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != User.Role.SUPPLIER:
+            return Response({'detail': 'Only suppliers can view workers.'}, status=status.HTTP_403_FORBIDDEN)
+        workers = request.user.workers.filter(role=User.Role.SALES_REP).order_by('username')
+        return Response(BusinessMemberSerializer(workers, many=True).data)
+
+    def post(self, request):
+        if request.user.role != User.Role.SUPPLIER:
+            return Response({'detail': 'Only suppliers can create worker accounts.'}, status=status.HTTP_403_FORBIDDEN)
+        required = ['username', 'password', 'phone']
+        missing = [field for field in required if not request.data.get(field)]
+        if missing:
+            return Response({'detail': 'Username, password and phone are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if len(request.data['password']) < 8:
+            return Response({'detail': 'Password must be at least 8 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            phone = normalize_phone(request.data['phone'])
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(username=request.data['username']).exists() or User.objects.filter(phone=phone).exists():
+            return Response({'detail': 'A user with this username or phone already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+        worker = User.objects.create_user(
+            username=request.data['username'], password=request.data['password'],
+            email=request.data.get('email', ''), phone=phone, role=User.Role.SALES_REP,
+            company_name=request.user.company_name, city=request.user.city,
+            business_supplier=request.user, is_phone_verified=True
+        )
+        return Response(BusinessMemberSerializer(worker).data, status=status.HTTP_201_CREATED)
+
+
+class BusinessClientListCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _business(self, request):
+        business = supplier_business(request.user)
+        if not business:
+            return None
+        return business
+
+    def get(self, request):
+        business = self._business(request)
+        if not business:
+            return Response({'detail': 'Supplier staff access required.'}, status=status.HTTP_403_FORBIDDEN)
+        clients = User.objects.filter(role=User.Role.CLIENT).filter(
+            Q(assigned_sales_rep__business_supplier=business) |
+            Q(requests__supplier=business)
+        ).distinct().annotate(request_count=Count('requests', filter=Q(requests__supplier=business))).order_by('username')
+        if request.user.role == User.Role.SALES_REP:
+            clients = clients.filter(
+                Q(assigned_sales_rep=request.user) |
+                Q(requests__sales_rep=request.user)
+            ).distinct()
+        return Response(BusinessMemberSerializer(clients, many=True).data)
+
+    def post(self, request):
+        business = self._business(request)
+        if not business:
+            return Response({'detail': 'Supplier staff access required.'}, status=status.HTTP_403_FORBIDDEN)
+        required = ['username', 'password', 'phone']
+        missing = [field for field in required if not request.data.get(field)]
+        if missing:
+            return Response({'detail': 'Name, password and phone are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if len(request.data['password']) < 8:
+            return Response({'detail': 'Password must be at least 8 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            phone = normalize_phone(request.data['phone'])
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        if User.objects.filter(username=request.data['username']).exists() or User.objects.filter(phone=phone).exists():
+            return Response({'detail': 'A client with this username or phone already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+        client = User.objects.create_user(
+            username=request.data['username'], password=request.data['password'],
+            email=request.data.get('email', ''), phone=phone, role=User.Role.CLIENT,
+            company_name=request.data.get('company_name', ''), description=request.data.get('description', ''),
+            city=business.city, assigned_sales_rep=(request.user if request.user.role == User.Role.SALES_REP else None),
+            is_phone_verified=True
+        )
+        return Response(BusinessMemberSerializer(client).data, status=status.HTTP_201_CREATED)

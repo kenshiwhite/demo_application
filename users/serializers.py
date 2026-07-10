@@ -46,6 +46,7 @@ class SupplierSerializer(serializers.ModelSerializer):
 
 class ProfileSerializer(serializers.ModelSerializer):
     city_display = serializers.SerializerMethodField()
+    business_supplier_name = serializers.CharField(source='business_supplier.company_name', read_only=True)
 
     class Meta:
         model = User
@@ -53,11 +54,13 @@ class ProfileSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'role',
             'company_name', 'phone', 'description',
             'is_email_verified', 'is_phone_verified', 'date_joined',
-            'city', 'city_display'
+            'city', 'city_display', 'business_supplier', 'business_supplier_name',
+            'assigned_sales_rep'
         ]
         read_only_fields = [
             'id', 'username', 'role',
-            'is_email_verified', 'is_phone_verified', 'date_joined'
+            'is_email_verified', 'is_phone_verified', 'date_joined',
+            'business_supplier', 'assigned_sales_rep'
         ]
 
     def validate_phone(self, value):
@@ -80,3 +83,19 @@ class ProfileSerializer(serializers.ModelSerializer):
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(required=True)
     new_password = serializers.CharField(required=True, min_length=8)
+
+
+class BusinessMemberSerializer(serializers.ModelSerializer):
+    assigned_sales_rep_name = serializers.CharField(
+        source='assigned_sales_rep.username', read_only=True
+    )
+    request_count = serializers.IntegerField(read_only=True, required=False)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'phone', 'company_name', 'description',
+            'city', 'date_joined', 'assigned_sales_rep', 'assigned_sales_rep_name',
+            'request_count'
+        ]
+        read_only_fields = fields

@@ -31,6 +31,7 @@ class User(AbstractUser):
     class Role(models.TextChoices):
         CLIENT = 'client', 'Client'
         SUPPLIER = 'supplier', 'Supplier'
+        SALES_REP = 'sales_rep', 'Sales representative'
         ADMIN = 'admin', 'Admin'
 
     role = models.CharField(max_length=20, choices=Role.choices)
@@ -49,6 +50,16 @@ class User(AbstractUser):
         choices=KAZAKHSTAN_CITIES,
         blank=True,
         default=''
+    )
+    # A sales representative belongs to exactly one supplier business.
+    business_supplier = models.ForeignKey(
+        'self', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='workers', limit_choices_to={'role': 'supplier'}
+    )
+    # A client created by a sales representative remains assigned to them.
+    assigned_sales_rep = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='assigned_clients', limit_choices_to={'role': 'sales_rep'}
     )
 
     def generate_verification_code(self):
