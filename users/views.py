@@ -8,11 +8,12 @@ from django.db.models import Q, Count
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
     RegisterSerializer, SupplierSerializer,
-    ProfileSerializer, ChangePasswordSerializer, BusinessMemberSerializer
+    ProfileSerializer, ChangePasswordSerializer, BusinessMemberSerializer,
+    BusinessClientSerializer
 )
 from .email import send_verification_email
 from .sms import normalize_phone, send_phone_verification_code
-from users.models import KAZAKHSTAN_CITIES
+from users.models import KAZAKHSTAN_CITIES, BusinessClient
 import threading
 import logging
 
@@ -349,38 +350,24 @@ class BusinessClientListCreateView(APIView):
         business = self._business(request)
         if not business:
             return Response({'detail': 'Supplier staff access required.'}, status=status.HTTP_403_FORBIDDEN)
-        clients = User.objects.filter(role=User.Role.CLIENT).filter(
-            Q(assigned_sales_rep__business_supplier=business) |
-            Q(requests__supplier=business)
-        ).distinct().annotate(request_count=Count('requests', filter=Q(requests__supplier=business))).order_by('username')
+        clients = BusinessClient.objects.filter(supplier=business).annotate(request_count=Count('requests')).order_by('name')
         if request.user.role == User.Role.SALES_REP:
-            clients = clients.filter(
-                Q(assigned_sales_rep=request.user) |
-                Q(requests__sales_rep=request.user)
-            ).distinct()
-        return Response(BusinessMemberSerializer(clients, many=True).data)
+            clients = clients.filter(sales_rep=request.user)
+        return Response(BusinessClientSerializer(clients, many=True).data)
 
     def post(self, request):
         business = self._business(request)
         if not business:
             return Response({'detail': 'Supplier staff access required.'}, status=status.HTTP_403_FORBIDDEN)
-        required = ['username', 'password', 'phone']
+        required = ['name', 'address']
         missing = [field for field in required if not request.data.get(field)]
         if missing:
-            return Response({'detail': 'Name, password and phone are required.'}, status=status.HTTP_400_BAD_REQUEST)
-        if len(request.data['password']) < 8:
-            return Response({'detail': 'Password must be at least 8 characters.'}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            phone = normalize_phone(request.data['phone'])
-        except ValueError as exc:
-            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-        if User.objects.filter(username=request.data['username']).exists() or User.objects.filter(phone=phone).exists():
-            return Response({'detail': 'A client with this username or phone already exists.'}, status=status.HTTP_400_BAD_REQUEST)
-        client = User.objects.create_user(
-            username=request.data['username'], password=request.data['password'],
-            email=request.data.get('email', ''), phone=phone, role=User.Role.CLIENT,
-            company_name=request.data.get('company_name', ''), description=request.data.get('description', ''),
-            city=business.city, assigned_sales_rep=(request.user if request.user.role == User.Role.SALES_REP else None),
-            is_phone_verified=True
+            return Response({'detail': 'Client name and address are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        client = BusinessClient.objects.create(
+            supplier=business, sales_rep=(request.user if request.user.role == User.Role.SALES_REP else None),
+            name=request.data['name'].strip(), company_name=request.data.get('company_name', '').strip(),
+            phone=request.data.get('phone', '').strip(), email=request.data.get('email', '').strip(),
+            address=request.data['address'].strip(), latitude=request.data.get('latitude') or None,
+            longitude=request.data.get('longitude') or None, notes=request.data.get('notes', '').strip(),
         )
-        return Response(BusinessMemberSerializer(client).data, status=status.HTTP_201_CREATED)
+        return Response(BusinessClientSerializer(client).data, status=status.HTTP_201_CREATED)

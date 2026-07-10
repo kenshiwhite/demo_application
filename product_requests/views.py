@@ -12,6 +12,7 @@ from notifications.services import (
     notify_client_status_update
 )
 from catalog.models import Product
+from users.models import BusinessClient
 
 User = get_user_model()
 
@@ -42,7 +43,8 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         is_sales_rep = request.user.role == User.Role.SALES_REP
-        if request.user.role != User.Role.CLIENT and not is_sales_rep:
+        is_business_staff = request.user.role in [User.Role.SUPPLIER, User.Role.SALES_REP]
+        if request.user.role != User.Role.CLIENT and not is_business_staff:
             return Response({'detail': 'Only clients or sales representatives can create requests.'}, status=status.HTTP_403_FORBIDDEN)
         if not request.user.is_phone_verified:
             return Response(
@@ -80,16 +82,19 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
         if is_sales_rep and supplier != request.user.business_supplier:
             return Response({'detail': 'You can only create requests for your supplier business.'}, status=status.HTTP_403_FORBIDDEN)
 
-        if is_sales_rep:
-            client_id = request.data.get('client_id')
+        if is_business_staff:
+            business_client_id = request.data.get('business_client_id')
             try:
-                client_user = User.objects.get(id=client_id, role=User.Role.CLIENT)
+                business_client = BusinessClient.objects.get(id=business_client_id, supplier=supplier)
             except (User.DoesNotExist, ValueError, TypeError):
                 return Response({'detail': 'Choose a valid client.'}, status=status.HTTP_400_BAD_REQUEST)
-            if client_user.assigned_sales_rep_id not in [None, request.user.id] and not client_user.requests.filter(supplier=supplier).exists():
+            except BusinessClient.DoesNotExist:
+                return Response({'detail': 'Choose a valid client.'}, status=status.HTTP_400_BAD_REQUEST)
+            if is_sales_rep and business_client.sales_rep_id != request.user.id:
                 return Response({'detail': 'This client is assigned to another representative.'}, status=status.HTTP_403_FORBIDDEN)
         else:
             client_user = request.user
+            business_client = None
 
         # check stock for all items
         for product, quantity in products:
@@ -105,12 +110,15 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
         # create request
         product_request = ProductRequest.objects.create(
             client=client_user,
+            business_client=business_client,
             supplier=supplier,
             sales_rep=request.user if is_sales_rep else None,
             note=request.data.get('note', ''),
-            delivery_address=request.data.get('delivery_address', ''),
+            delivery_address=request.data.get('delivery_address', business_client.address if business_client else ''),
+            delivery_latitude=request.data.get('delivery_latitude') or (business_client.latitude if business_client else None),
+            delivery_longitude=request.data.get('delivery_longitude') or (business_client.longitude if business_client else None),
             desired_delivery_date=request.data.get('desired_delivery_date') or None,
-            contact_phone=request.data.get('contact_phone', ''),
+            contact_phone=request.data.get('contact_phone', business_client.phone if business_client else ''),
             total_price=total_price,
         )
 

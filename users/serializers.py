@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from users.models import KAZAKHSTAN_CITIES
+from users.models import KAZAKHSTAN_CITIES, BusinessClient
 from .sms import normalize_phone
 
 User = get_user_model()
@@ -99,3 +99,15 @@ class BusinessMemberSerializer(serializers.ModelSerializer):
             'request_count'
         ]
         read_only_fields = fields
+
+
+class BusinessClientSerializer(serializers.ModelSerializer):
+    sales_rep_name = serializers.CharField(source='sales_rep.username', read_only=True)
+    request_count = serializers.IntegerField(read_only=True, required=False)
+
+    class Meta:
+        model = BusinessClient
+        fields = ['id', 'name', 'company_name', 'phone', 'email', 'address',
+                  'latitude', 'longitude', 'notes', 'sales_rep', 'sales_rep_name',
+                  'request_count', 'created_at']
+        read_only_fields = ['id', 'sales_rep', 'sales_rep_name', 'request_count', 'created_at']

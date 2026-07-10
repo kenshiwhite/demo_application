@@ -29,25 +29,35 @@ class SupplierResponseSerializer(serializers.ModelSerializer):
         read_only_fields = ['supplier', 'created_at']
 
 class ProductRequestSerializer(serializers.ModelSerializer):
-    client_name = serializers.CharField(source='client.username', read_only=True)
-    client_phone = serializers.CharField(source='client.phone', read_only=True)
-    client_company = serializers.CharField(source='client.company_name', read_only=True)
+    client_name = serializers.SerializerMethodField()
+    client_phone = serializers.SerializerMethodField()
+    client_company = serializers.SerializerMethodField()
     supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
     sales_rep_name = serializers.CharField(source='sales_rep.username', read_only=True)
     items = RequestItemSerializer(many=True, read_only=True)
     response = SupplierResponseSerializer(read_only=True)
 
+    def get_client_name(self, obj):
+        return obj.client.username if obj.client else obj.business_client.name
+
+    def get_client_phone(self, obj):
+        return obj.client.phone if obj.client else obj.business_client.phone
+
+    def get_client_company(self, obj):
+        return obj.client.company_name if obj.client else obj.business_client.company_name
+
     class Meta:
         model = ProductRequest
         fields = [
-            'id', 'client', 'client_name', 'client_phone', 'client_company',
+            'id', 'client', 'business_client', 'client_name', 'client_phone', 'client_company',
             'supplier', 'supplier_name',
             'sales_rep', 'sales_rep_name',
             'items', 'note', 'status',
             'total_price',
             'delivery_address',
+            'delivery_latitude', 'delivery_longitude',
             'desired_delivery_date',
             'contact_phone',
             'response', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['client', 'supplier', 'sales_rep', 'status', 'created_at', 'updated_at']
+        read_only_fields = ['client', 'business_client', 'supplier', 'sales_rep', 'status', 'created_at', 'updated_at']

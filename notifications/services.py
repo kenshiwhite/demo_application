@@ -15,7 +15,8 @@ def notify_supplier_new_request(request_obj):
     supplier = request_obj.supplier
     client = request_obj.client
     title = 'Новая заявка'
-    body = f'{client.company_name or client.username} отправил заявку на {request_obj.items.count()} товар(ов)'
+    client_name = (client.company_name or client.username) if client else request_obj.business_client.name
+    body = f'{client_name} отправил заявку на {request_obj.items.count()} товар(ов)'
 
     Notification.objects.create(
         recipient=supplier,
@@ -30,6 +31,8 @@ def notify_supplier_new_request(request_obj):
 
 def notify_client_response(request_obj):
     client = request_obj.client
+    if not client:
+        return
     supplier = request_obj.supplier
     title = 'Ответ на заявку'
     body = f'{supplier.company_name or supplier.username} ответил на вашу заявку #{request_obj.id}'
@@ -47,6 +50,8 @@ def notify_client_response(request_obj):
 
 def notify_client_status_update(request_obj):
     client = request_obj.client
+    if not client:
+        return
     supplier = request_obj.supplier
     status_labels = {
         'accepted': 'принята',
