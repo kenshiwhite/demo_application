@@ -83,6 +83,9 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'You can only create requests for your supplier business.'}, status=status.HTTP_403_FORBIDDEN)
 
         if is_business_staff:
+            # CRM contacts are not authenticated users, so staff-created
+            # requests intentionally have no ``client`` user attached.
+            client_user = None
             business_client_id = request.data.get('business_client_id')
             try:
                 business_client = BusinessClient.objects.get(id=business_client_id, supplier=supplier)
