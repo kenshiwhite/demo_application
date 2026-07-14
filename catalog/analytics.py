@@ -1,7 +1,11 @@
-from django.db.models import Sum, Count, Avg, F
+from django.contrib.auth import get_user_model
+from django.db.models import Sum, Count, Avg, F, Q
 from django.utils import timezone
 from datetime import timedelta
 from product_requests.models import ProductRequest, RequestItem
+from users.models import BusinessClient
+
+User = get_user_model()
 
 
 def get_supplier_analytics(supplier, period_days=30):
@@ -62,6 +66,31 @@ def get_supplier_analytics(supplier, period_days=30):
         status='pending'
     ).count()
 
+    sales_reps = list(User.objects.filter(
+        role=User.Role.SALES_REP,
+        business_supplier=supplier,
+    ).values('id', 'username'))
+
+    client_counts = {
+        item['sales_rep_id']: item['count']
+        for item in BusinessClient.objects.filter(
+            supplier=supplier,
+            sales_rep__isnull=False,
+        ).values('sales_rep_id').annotate(count=Count('id'))
+    }
+    sales_stats = {
+        item['sales_rep_id']: item
+        for item in ProductRequest.objects.filter(
+            supplier=supplier,
+            sales_rep__isnull=False,
+            updated_at__gte=since,
+        ).values('sales_rep_id').annotate(
+            request_count=Count('id'),
+            fulfilled_count=Count('id', filter=Q(status='fulfilled')),
+            revenue=Sum('total_price', filter=Q(status='fulfilled')),
+        )
+    }
+
     return {
         'total_revenue': float(total_revenue),
         'total_orders': total_orders,
@@ -87,5 +116,16 @@ def get_supplier_analytics(supplier, period_days=30):
         'status_counts': {
             item['status']: item['count']
             for item in status_counts
-        }
+        },
+        'sales_reps': [
+            {
+                'id': rep['id'],
+                'name': rep['username'],
+                'client_count': client_counts.get(rep['id'], 0),
+                'request_count': sales_stats.get(rep['id'], {}).get('request_count', 0),
+                'fulfilled_count': sales_stats.get(rep['id'], {}).get('fulfilled_count', 0),
+                'revenue': float(sales_stats.get(rep['id'], {}).get('revenue') or 0),
+            }
+            for rep in sales_reps
+        ],
     }
