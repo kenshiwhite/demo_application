@@ -8,6 +8,7 @@ class ProductRequest(models.Model):
         ACCEPTED = 'accepted', 'Accepted'
         DECLINED = 'declined', 'Declined'
         FULFILLED = 'fulfilled', 'Fulfilled'
+        CANCELLED = 'cancelled', 'Cancelled'
 
     client = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -51,6 +52,15 @@ class ProductRequest(models.Model):
     delivery_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     desired_delivery_date = models.DateField(null=True, blank=True)
     contact_phone = models.CharField(max_length=20, blank=True)
+    cancelled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='cancelled_requests',
+        null=True,
+        blank=True
+    )
+    cancel_reason = models.TextField(blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -38,6 +38,7 @@ class User(AbstractUser):
     phone = models.CharField(max_length=20, blank=True)
     company_name = models.CharField(max_length=200, blank=True)
     description = models.TextField(blank=True)
+    profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
     is_email_verified = models.BooleanField(default=False)
     email_verification_code = models.CharField(max_length=6, blank=True)
     is_phone_verified = models.BooleanField(default=False)

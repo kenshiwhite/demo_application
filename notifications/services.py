@@ -72,3 +72,37 @@ def notify_client_status_update(request_obj):
         'type': f'request_{request_obj.status}',
         'request_id': request_obj.id,
     })
+
+
+def notify_request_cancelled(request_obj, cancelled_by):
+    supplier = request_obj.supplier
+    client = request_obj.client
+    cancelled_by_supplier = supplier and (
+        cancelled_by.id == supplier.id or
+        getattr(cancelled_by, 'business_supplier_id', None) == supplier.id
+    )
+
+    if cancelled_by_supplier:
+        recipient = client
+        if not recipient:
+            return
+        title = f'Р—Р°СЏРІРєР° #{request_obj.id} РѕС‚РјРµРЅРµРЅР°'
+        body = f'{supplier.company_name or supplier.username} РѕС‚РјРµРЅРёР» Р·Р°СЏРІРєСѓ'
+    else:
+        recipient = supplier
+        if not recipient:
+            return
+        client_name = (client.company_name or client.username) if client else request_obj.business_client.name
+        title = f'Р—Р°СЏРІРєР° #{request_obj.id} РѕС‚РјРµРЅРµРЅР°'
+        body = f'{client_name} РѕС‚РјРµРЅРёР» Р·Р°СЏРІРєСѓ'
+
+    Notification.objects.create(
+        recipient=recipient,
+        title=title,
+        message=body,
+        notification_type='request_cancelled',
+    )
+    _send_push_async(recipient, title, body, {
+        'type': 'request_cancelled',
+        'request_id': request_obj.id,
+    })

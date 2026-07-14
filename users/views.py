@@ -2,6 +2,7 @@ from rest_framework import generics, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.db.models import Q, Count
@@ -216,6 +217,7 @@ class MeView(APIView):
 
 class ProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get(self, request):
         serializer = ProfileSerializer(request.user)
@@ -229,6 +231,26 @@ class ProfileView(APIView):
             serializer.save()
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class DeleteProfilePictureView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request):
+        user = request.user
+        if user.profile_picture:
+            user.profile_picture.delete(save=False)
+            user.profile_picture = None
+            user.save(update_fields=['profile_picture'])
+        return Response(ProfileSerializer(user).data)
+
+
+class DeleteAccountView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request):
+        request.user.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 class ChangePasswordView(APIView):
     permission_classes = [permissions.IsAuthenticated]

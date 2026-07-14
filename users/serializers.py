@@ -35,7 +35,7 @@ class SupplierSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'company_name',
             'phone', 'description', 'product_count',
-            'city', 'city_display'
+            'city', 'city_display', 'profile_picture'
         ]
 
     def get_product_count(self, obj):
@@ -53,6 +53,7 @@ class ProfileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'role',
             'company_name', 'phone', 'description',
+            'profile_picture',
             'is_email_verified', 'is_phone_verified', 'date_joined',
             'city', 'city_display', 'business_supplier', 'business_supplier_name',
             'assigned_sales_rep'

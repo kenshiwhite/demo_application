@@ -6,10 +6,12 @@ from .serializers import ProductRequestSerializer, SupplierResponseSerializer
 from users.permissions import IsSupplier, IsClient, IsSupplierStaff
 from django.contrib.auth import get_user_model
 from django.db.models import Q
+from django.utils import timezone
 from notifications.services import (
     notify_supplier_new_request,
     notify_client_response,
-    notify_client_status_update
+    notify_client_status_update,
+    notify_request_cancelled
 )
 from catalog.models import Product
 from users.models import BusinessClient
@@ -201,3 +203,25 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
         product_request.save()
         notify_client_status_update(product_request)
         return Response({'status': new_status})
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    def cancel(self, request, pk=None):
+        product_request = self.get_object()
+        if product_request.status not in [
+            ProductRequest.Status.PENDING,
+            ProductRequest.Status.ACCEPTED,
+        ]:
+            return Response(
+                {'detail': 'Only pending or accepted requests can be cancelled.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        product_request.status = ProductRequest.Status.CANCELLED
+        product_request.cancelled_by = request.user
+        product_request.cancel_reason = request.data.get('reason', '').strip()
+        product_request.cancelled_at = timezone.now()
+        product_request.save(update_fields=[
+            'status', 'cancelled_by', 'cancel_reason', 'cancelled_at', 'updated_at'
+        ])
+        notify_request_cancelled(product_request, request.user)
+        return Response(self.get_serializer(product_request).data)

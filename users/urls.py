@@ -3,7 +3,7 @@ from .views import (
     RegisterView, SupplierListView, SupplierDetailView,
     MeView, ProfileView, ChangePasswordView,
     VerifyEmailView, ResendVerificationView,
-    UpdateEmailView, UpdatePushTokenView, get_cities,
+    UpdateEmailView, UpdatePushTokenView, DeleteAccountView, DeleteProfilePictureView, get_cities,
     SendPhoneVerificationView, VerifyPhoneView,
     PhoneLoginRequestView, PhoneLoginVerifyView, WorkerListCreateView,
     BusinessClientListCreateView
@@ -15,6 +15,8 @@ urlpatterns = [
     path('suppliers/<int:pk>/', SupplierDetailView.as_view()),
     path('me/', MeView.as_view()),
     path('profile/', ProfileView.as_view()),
+    path('profile/picture/', DeleteProfilePictureView.as_view()),
+    path('account/', DeleteAccountView.as_view()),
     path('change-password/', ChangePasswordView.as_view()),
     path('me/update/', UpdateEmailView.as_view()),
     path('push-token/', UpdatePushTokenView.as_view()),

@@ -58,6 +58,11 @@ class ProductRequestSerializer(serializers.ModelSerializer):
             'delivery_latitude', 'delivery_longitude',
             'desired_delivery_date',
             'contact_phone',
+            'cancelled_by', 'cancel_reason', 'cancelled_at',
             'response', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['client', 'business_client', 'supplier', 'sales_rep', 'status', 'created_at', 'updated_at']
+        read_only_fields = [
+            'client', 'business_client', 'supplier', 'sales_rep', 'status',
+            'cancelled_by', 'cancel_reason', 'cancelled_at',
+            'created_at', 'updated_at'
+        ]
