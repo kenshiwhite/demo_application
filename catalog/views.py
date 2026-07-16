@@ -1,6 +1,8 @@
+# catalog/views.py
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.db.models import Q
 from users.permissions import IsSupplier, IsSupplierStaff
 from .analytics import get_supplier_analytics
 from rest_framework import viewsets, permissions
@@ -33,7 +35,10 @@ class ProductViewSet(viewsets.ModelViewSet):
         qs = Product.objects.filter(is_available=True)
         city = self.request.query_params.get('city')
         if city:
-            qs = qs.filter(supplier__city=city)
+            qs = qs.filter(
+                Q(supplier__service_cities__contains=[city]) |
+                Q(supplier__service_cities=[], supplier__city=city)
+            )
         return qs
 
     def get_permissions(self):

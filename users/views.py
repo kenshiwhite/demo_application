@@ -54,7 +54,7 @@ def verify_phone_code(user, code, allow_already_verified=False):
     return None
 
 @api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
+@permission_classes([permissions.AllowAny])
 def get_cities(request):
     cities = [{'value': v, 'label': l} for v, l in KAZAKHSTAN_CITIES]
     return Response(cities)
@@ -311,7 +311,13 @@ class SupplierListView(generics.ListAPIView):
         qs = User.objects.filter(role='supplier')
         city = self.request.query_params.get('city')
         if city:
-            qs = qs.filter(city=city)
+            # Match suppliers who list this city in their coverage area.
+            # Fall back to the legacy single `city` field for any supplier
+            # that hasn't been migrated to service_cities yet.
+            qs = qs.filter(
+                Q(service_cities__contains=[city]) |
+                Q(service_cities=[], city=city)
+            )
         return qs
 
 class SupplierDetailView(generics.RetrieveAPIView):

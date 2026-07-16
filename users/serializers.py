@@ -1,6 +1,7 @@
+# users/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from users.models import KAZAKHSTAN_CITIES, BusinessClient
+from users.models import KAZAKHSTAN_CITIES, BusinessClient, validate_city_codes
 from .sms import normalize_phone
 
 User = get_user_model()
@@ -8,12 +9,15 @@ User = get_user_model()
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=8)
     phone = serializers.CharField(required=True, allow_blank=False)
+    service_cities = serializers.ListField(
+        child=serializers.CharField(), required=False, allow_empty=True
+    )
 
     class Meta:
         model = User
         fields = [
             'email', 'username', 'password',
-            'role', 'company_name', 'phone', 'city'
+            'role', 'company_name', 'phone', 'city', 'service_cities'
         ]
 
     def create(self, validated_data):
@@ -26,16 +30,28 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('This phone number is already registered.')
         return phone
 
+    def validate_service_cities(self, value):
+        if value and self.initial_data.get('role') != 'supplier':
+            raise serializers.ValidationError('Only suppliers can set covered cities.')
+        try:
+            validate_city_codes(value)
+        except Exception as exc:
+            raise serializers.ValidationError(str(exc))
+        # de-duplicate while preserving order
+        return list(dict.fromkeys(value))
+
 class SupplierSerializer(serializers.ModelSerializer):
     product_count = serializers.SerializerMethodField()
     city_display = serializers.SerializerMethodField()
+    service_cities_display = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'username', 'company_name',
             'phone', 'description', 'product_count',
-            'city', 'city_display', 'profile_picture'
+            'city', 'city_display', 'profile_picture',
+            'service_cities', 'service_cities_display'
         ]
 
     def get_product_count(self, obj):
@@ -44,8 +60,13 @@ class SupplierSerializer(serializers.ModelSerializer):
     def get_city_display(self, obj):
         return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)
 
+    def get_service_cities_display(self, obj):
+        labels = dict(KAZAKHSTAN_CITIES)
+        return [labels.get(code, code) for code in obj.service_cities]
+
 class ProfileSerializer(serializers.ModelSerializer):
     city_display = serializers.SerializerMethodField()
+    service_cities_display = serializers.SerializerMethodField()
     business_supplier_name = serializers.CharField(source='business_supplier.company_name', read_only=True)
 
     class Meta:
@@ -55,7 +76,8 @@ class ProfileSerializer(serializers.ModelSerializer):
             'company_name', 'phone', 'description',
             'profile_picture',
             'is_email_verified', 'is_phone_verified', 'date_joined',
-            'city', 'city_display', 'business_supplier', 'business_supplier_name',
+            'city', 'city_display', 'service_cities', 'service_cities_display',
+            'business_supplier', 'business_supplier_name',
             'assigned_sales_rep'
         ]
         read_only_fields = [
@@ -70,6 +92,15 @@ class ProfileSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('This phone number is already registered.')
         return phone
 
+    def validate_service_cities(self, value):
+        if value and self.instance.role != 'supplier':
+            raise serializers.ValidationError('Only suppliers can set covered cities.')
+        try:
+            validate_city_codes(value)
+        except Exception as exc:
+            raise serializers.ValidationError(str(exc))
+        return list(dict.fromkeys(value))
+
     def update(self, instance, validated_data):
         if 'phone' in validated_data and validated_data['phone'] != instance.phone:
             validated_data['is_phone_verified'] = False
@@ -80,6 +111,10 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     def get_city_display(self, obj):
         return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)
+
+    def get_service_cities_display(self, obj):
+        labels = dict(KAZAKHSTAN_CITIES)
+        return [labels.get(code, code) for code in obj.service_cities]
 
 class ChangePasswordSerializer(serializers.Serializer):
     old_password = serializers.CharField(required=True)

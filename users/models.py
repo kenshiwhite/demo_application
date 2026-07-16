@@ -1,4 +1,7 @@
+# users/models.py
 from django.contrib.auth.models import AbstractUser
+from django.contrib.postgres.fields import ArrayField
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from datetime import timedelta
@@ -27,6 +30,15 @@ KAZAKHSTAN_CITIES = [
     ('rudny', 'Рудный'),
 ]
 
+VALID_CITY_CODES = {code for code, _ in KAZAKHSTAN_CITIES}
+
+
+def validate_city_codes(value):
+    """Ensures every entry in a city-code list is a recognised Kazakhstan city."""
+    invalid = [code for code in value if code not in VALID_CITY_CODES]
+    if invalid:
+        raise ValidationError(f'Unknown city code(s): {", ".join(invalid)}')
+
 class User(AbstractUser):
     class Role(models.TextChoices):
         CLIENT = 'client', 'Client'
@@ -51,6 +63,15 @@ class User(AbstractUser):
         choices=KAZAKHSTAN_CITIES,
         blank=True,
         default=''
+    )
+    # Cities a supplier delivers to / covers. Only meaningful for role=supplier;
+    # `city` above remains the supplier's primary/HQ city for display purposes.
+    service_cities = ArrayField(
+        models.CharField(max_length=50, choices=KAZAKHSTAN_CITIES),
+        default=list,
+        blank=True,
+        validators=[validate_city_codes],
+        help_text='Cities this supplier covers/delivers to.'
     )
     # A sales representative belongs to exactly one supplier business.
     business_supplier = models.ForeignKey(
