@@ -1,3 +1,4 @@
+# product_requests/serializers.py
 from rest_framework import serializers
 from .models import ProductRequest, RequestItem, SupplierResponse
 
@@ -19,12 +20,16 @@ class SupplierResponseSerializer(serializers.ModelSerializer):
         source='supplier.company_name',
         read_only=True
     )
+    supplier_profile_picture = serializers.ImageField(
+        source='supplier.profile_picture',
+        read_only=True
+    )
 
     class Meta:
         model = SupplierResponse
         fields = [
             'id', 'message', 'offered_price',
-            'supplier', 'supplier_name', 'created_at'
+            'supplier', 'supplier_name', 'supplier_profile_picture', 'created_at'
         ]
         read_only_fields = ['supplier', 'created_at']
 
@@ -32,7 +37,9 @@ class ProductRequestSerializer(serializers.ModelSerializer):
     client_name = serializers.SerializerMethodField()
     client_phone = serializers.SerializerMethodField()
     client_company = serializers.SerializerMethodField()
+    client_profile_picture = serializers.SerializerMethodField()
     supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
+    supplier_profile_picture = serializers.ImageField(source='supplier.profile_picture', read_only=True)
     sales_rep_name = serializers.CharField(source='sales_rep.username', read_only=True)
     items = RequestItemSerializer(many=True, read_only=True)
     response = SupplierResponseSerializer(read_only=True)
@@ -46,11 +53,21 @@ class ProductRequestSerializer(serializers.ModelSerializer):
     def get_client_company(self, obj):
         return obj.client.company_name if obj.client else obj.business_client.company_name
 
+    def get_client_profile_picture(self, obj):
+        # Only real User accounts (obj.client) have a profile picture;
+        # a business_client is a CRM contact with no login/account.
+        if not (obj.client and obj.client.profile_picture):
+            return None
+        request = self.context.get('request')
+        url = obj.client.profile_picture.url
+        return request.build_absolute_uri(url) if request else url
+
     class Meta:
         model = ProductRequest
         fields = [
-            'id', 'client', 'business_client', 'client_name', 'client_phone', 'client_company',
-            'supplier', 'supplier_name',
+            'id', 'client', 'business_client', 'client_name', 'client_phone',
+            'client_company', 'client_profile_picture',
+            'supplier', 'supplier_name', 'supplier_profile_picture',
             'sales_rep', 'sales_rep_name',
             'items', 'note', 'status',
             'total_price',

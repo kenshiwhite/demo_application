@@ -131,6 +131,7 @@ class BusinessMemberSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             'id', 'username', 'email', 'phone', 'company_name', 'description',
+            'profile_picture',
             'city', 'date_joined', 'assigned_sales_rep', 'assigned_sales_rep_name',
             'request_count'
         ]
