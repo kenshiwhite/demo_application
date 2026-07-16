@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    "django.contrib.postgres",   # <-- Add this
     'users',
     'catalog',
     'storages',
