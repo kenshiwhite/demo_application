@@ -8,6 +8,7 @@ from .analytics import get_supplier_analytics
 from rest_framework import viewsets, permissions
 from .models import Product, CATEGORY_CHOICES
 from .serializers import ProductSerializer
+from .filters import ProductFilter
 from users.permissions import IsSupplier
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -22,7 +23,7 @@ def get_categories(request):
 class ProductViewSet(viewsets.ModelViewSet):
     serializer_class = ProductSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['category', 'is_available', 'supplier']
+    filterset_class = ProductFilter
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at', 'stock_quantity']
 
