@@ -1,3 +1,4 @@
+# product_requests/views.py
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -29,9 +30,13 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
         user = self.request.user
         business = supplier_business(user)
         if business:
-            return ProductRequest.objects.filter(
-                supplier=business
-            ).prefetch_related('items__product').select_related('client', 'supplier', 'response')
+            qs = ProductRequest.objects.filter(supplier=business)
+            if user.role == User.Role.SALES_REP:
+                # A rep only sees requests already assigned to them, plus
+                # unclaimed requests (no rep assigned yet) they could pick up.
+                # Requests assigned to a *different* rep are hidden.
+                qs = qs.filter(Q(sales_rep=user) | Q(sales_rep__isnull=True))
+            return qs.prefetch_related('items__product').select_related('client', 'supplier', 'sales_rep', 'response')
         return ProductRequest.objects.filter(
             client=user
         ).prefetch_related('items__product').select_related('client', 'supplier', 'response')
@@ -203,6 +208,38 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
         product_request.save()
         notify_client_status_update(product_request)
         return Response({'status': new_status})
+
+    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsSupplier])
+    def assign_rep(self, request, pk=None):
+        product_request = self.get_object()
+        business = supplier_business(request.user)
+
+        if product_request.supplier != business:
+            return Response(
+                {'detail': 'Вы можете назначать сотрудников только на свои заявки.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if product_request.sales_rep_id:
+            return Response(
+                {'detail': 'На эту заявку уже назначен сотрудник.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        sales_rep_id = request.data.get('sales_rep_id')
+        try:
+            worker = User.objects.get(
+                id=sales_rep_id, role=User.Role.SALES_REP, business_supplier=business
+            )
+        except (User.DoesNotExist, ValueError, TypeError):
+            return Response(
+                {'detail': 'Выберите корректного сотрудника из вашей компании.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        product_request.sales_rep = worker
+        product_request.save(update_fields=['sales_rep', 'updated_at'])
+        return Response(self.get_serializer(product_request).data)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
     def cancel(self, request, pk=None):
