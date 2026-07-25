@@ -25,6 +25,7 @@ def supplier_business(user):
 
 class ProductRequestViewSet(viewsets.ModelViewSet):
     serializer_class = ProductRequestSerializer
+    pagination_class = None
 
     def get_queryset(self):
         user = self.request.user

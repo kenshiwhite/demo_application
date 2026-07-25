@@ -3,6 +3,8 @@ from django.conf import settings
 from catalog.models import Product
 
 class ProductRequest(models.Model):
+    class Meta:
+        ordering = ['-created_at']
     class Status(models.TextChoices):
         PENDING = 'pending', 'Pending'
         ACCEPTED = 'accepted', 'Accepted'
