@@ -25,7 +25,7 @@ def supplier_business(user):
 
 class ProductRequestViewSet(viewsets.ModelViewSet):
     serializer_class = ProductRequestSerializer
-    pagination_class = None
+    pagination_class = None  # app has no "load more" UI; never silently hide requests behind a page 2
 
     def get_queryset(self):
         user = self.request.user
@@ -103,9 +103,17 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
                 return Response({'detail': 'Choose a valid client.'}, status=status.HTTP_400_BAD_REQUEST)
             if is_sales_rep and business_client.sales_rep_id != request.user.id:
                 return Response({'detail': 'This client is assigned to another representative.'}, status=status.HTTP_403_FORBIDDEN)
+            # A rep creating it on the client's behalf is the obvious owner;
+            # otherwise fall back to whichever rep this CRM contact is
+            # permanently tied to (if any).
+            sales_rep_for_request = request.user if is_sales_rep else business_client.sales_rep
         else:
             client_user = request.user
             business_client = None
+            # If this client was permanently assigned to a rep before
+            # (via assign_rep with permanent=True), route new requests
+            # to that rep automatically.
+            sales_rep_for_request = client_user.assigned_sales_rep
 
         # check stock for all items
         for product, quantity in products:
@@ -123,7 +131,7 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
             client=client_user,
             business_client=business_client,
             supplier=supplier,
-            sales_rep=request.user if is_sales_rep else None,
+            sales_rep=sales_rep_for_request,
             note=request.data.get('note', ''),
             delivery_address=request.data.get('delivery_address', business_client.address if business_client else ''),
             delivery_latitude=request.data.get('delivery_latitude') or (business_client.latitude if business_client else None),
@@ -228,6 +236,7 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
             )
 
         sales_rep_id = request.data.get('sales_rep_id')
+        permanent = bool(request.data.get('permanent'))
         try:
             worker = User.objects.get(
                 id=sales_rep_id, role=User.Role.SALES_REP, business_supplier=business
@@ -240,6 +249,15 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
 
         product_request.sales_rep = worker
         product_request.save(update_fields=['sales_rep', 'updated_at'])
+
+        if permanent:
+            # Tie this client to the rep going forward: future requests from
+            # the same client (or the same CRM contact) auto-inherit the rep.
+            if product_request.client_id:
+                User.objects.filter(id=product_request.client_id).update(assigned_sales_rep=worker)
+            elif product_request.business_client_id:
+                BusinessClient.objects.filter(id=product_request.business_client_id).update(sales_rep=worker)
+
         return Response(self.get_serializer(product_request).data)
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])

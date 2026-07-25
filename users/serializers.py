@@ -148,3 +148,31 @@ class BusinessClientSerializer(serializers.ModelSerializer):
                   'latitude', 'longitude', 'notes', 'sales_rep', 'sales_rep_name',
                   'request_count', 'created_at']
         read_only_fields = ['id', 'sales_rep', 'sales_rep_name', 'request_count', 'created_at']
+
+
+class RegisteredClientSerializer(serializers.ModelSerializer):
+    """Represents a real (self-registered) client User inside the same
+    "clients" list a supplier sees for their CRM (BusinessClient) contacts.
+    Read-only: these are real accounts, not something a supplier edits."""
+    name = serializers.CharField(source='username', read_only=True)
+    address = serializers.SerializerMethodField()
+    sales_rep = serializers.IntegerField(source='assigned_sales_rep_id', read_only=True)
+    sales_rep_name = serializers.CharField(source='assigned_sales_rep.username', read_only=True)
+    city_display = serializers.SerializerMethodField()
+    request_count = serializers.IntegerField(read_only=True, required=False)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'name', 'username', 'company_name', 'phone', 'email', 'address',
+            'city', 'city_display', 'profile_picture',
+            'is_phone_verified', 'is_email_verified', 'date_joined',
+            'sales_rep', 'sales_rep_name', 'request_count',
+        ]
+
+    def get_address(self, obj):
+        last_request = obj.requests.order_by('-created_at').first()
+        return last_request.delivery_address if last_request else ''
+
+    def get_city_display(self, obj):
+        return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)

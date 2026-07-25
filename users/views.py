@@ -10,7 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
     RegisterSerializer, SupplierSerializer,
     ProfileSerializer, ChangePasswordSerializer, BusinessMemberSerializer,
-    BusinessClientSerializer
+    BusinessClientSerializer, RegisteredClientSerializer
 )
 from .email import send_verification_email
 from .sms import normalize_phone, send_phone_verification_code
@@ -378,10 +378,35 @@ class BusinessClientListCreateView(APIView):
         business = self._business(request)
         if not business:
             return Response({'detail': 'Supplier staff access required.'}, status=status.HTTP_403_FORBIDDEN)
-        clients = BusinessClient.objects.filter(supplier=business).annotate(request_count=Count('requests')).order_by('name')
+
+        # CRM contacts a supplier/rep entered manually.
+        crm_clients = BusinessClient.objects.filter(supplier=business).annotate(request_count=Count('requests')).order_by('name')
         if request.user.role == User.Role.SALES_REP:
-            clients = clients.filter(sales_rep=request.user)
-        return Response(BusinessClientSerializer(clients, many=True).data)
+            crm_clients = crm_clients.filter(sales_rep=request.user)
+        crm_data = BusinessClientSerializer(crm_clients, many=True).data
+        for row in crm_data:
+            row['client_type'] = 'business'
+
+        # Real clients who registered and ordered directly, with no CRM
+        # entry needed — they're "saved" here automatically the moment
+        # they place their first request with this business.
+        registered_ids = User.objects.filter(
+            role=User.Role.CLIENT, requests__supplier=business
+        ).values_list('id', flat=True).distinct()
+        registered_clients = User.objects.filter(id__in=registered_ids).annotate(
+            request_count=Count('requests', filter=Q(requests__supplier=business))
+        ).order_by('username')
+        if request.user.role == User.Role.SALES_REP:
+            registered_clients = registered_clients.filter(
+                Q(assigned_sales_rep=request.user) | Q(assigned_sales_rep__isnull=True)
+            )
+        registered_data = RegisteredClientSerializer(
+            registered_clients, many=True, context={'request': request}
+        ).data
+        for row in registered_data:
+            row['client_type'] = 'registered'
+
+        return Response(list(crm_data) + list(registered_data))
 
     def post(self, request):
         business = self._business(request)
