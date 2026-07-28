@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from catalog.models import Product
+from users.models import KAZAKHSTAN_CITIES
 
 class ProductRequest(models.Model):
     class Meta:
@@ -37,6 +38,12 @@ class ProductRequest(models.Model):
         'users.BusinessClient', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='requests'
     )
+    # Which city this request's stock is being fulfilled from — derived from
+    # the product(s) on the request at creation time (all items on one
+    # request must share a single city, same as they must share one
+    # supplier). Stored directly so requests can be filtered/scoped by city
+    # without joining through items every time.
+    city = models.CharField(max_length=50, choices=KAZAKHSTAN_CITIES, blank=True)
     note = models.TextField(blank=True)
     status = models.CharField(
         max_length=20,

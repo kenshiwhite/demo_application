@@ -29,29 +29,42 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        city = self.request.query_params.get('city')
+
         if user.role in ['supplier', 'sales_rep']:
             supplier = user if user.role == 'supplier' else user.business_supplier
-            return Product.objects.filter(supplier=supplier)
+            qs = Product.objects.filter(supplier=supplier)
+            # A sales rep assigned to a specific city only manages that
+            # city's stock. Reps with no city set (or suppliers themselves)
+            # see every city, optionally narrowed by ?city=.
+            if user.role == 'sales_rep' and user.city:
+                qs = qs.filter(city=user.city)
+            elif city:
+                qs = qs.filter(city=city)
+            return qs
 
         qs = Product.objects.filter(is_available=True)
-        city = self.request.query_params.get('city')
         if city:
-            qs = qs.filter(
-                Q(supplier__service_cities__contains=[city]) |
-                Q(supplier__service_cities=[], supplier__city=city)
-            )
+            qs = qs.filter(city=city)
         return qs
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [permissions.IsAuthenticated(), IsSupplier()]
+            return [permissions.IsAuthenticated(), IsSupplierStaff()]
         return [permissions.IsAuthenticated()]
 
     def perform_create(self, serializer):
-        if not self.request.user.is_phone_verified:
+        user = self.request.user
+        if not user.is_phone_verified:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied('Verify your phone number before adding products')
-        serializer.save(supplier=self.request.user)
+        supplier = user if user.role == 'supplier' else user.business_supplier
+        # A rep assigned to a specific city can only stock that city.
+        city = serializer.validated_data.get('city')
+        if user.role == 'sales_rep' and user.city and city != user.city:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Вы можете управлять товарами только своего города.')
+        serializer.save(supplier=supplier)
 
 
 @api_view(['GET'])

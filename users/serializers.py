@@ -126,28 +126,37 @@ class BusinessMemberSerializer(serializers.ModelSerializer):
         source='assigned_sales_rep.username', read_only=True
     )
     request_count = serializers.IntegerField(read_only=True, required=False)
+    city_display = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             'id', 'username', 'email', 'phone', 'company_name', 'description',
             'profile_picture',
-            'city', 'date_joined', 'assigned_sales_rep', 'assigned_sales_rep_name',
+            'city', 'city_display', 'date_joined', 'assigned_sales_rep', 'assigned_sales_rep_name',
             'request_count'
         ]
         read_only_fields = fields
+
+    def get_city_display(self, obj):
+        return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)
 
 
 class BusinessClientSerializer(serializers.ModelSerializer):
     sales_rep_name = serializers.CharField(source='sales_rep.username', read_only=True)
     request_count = serializers.IntegerField(read_only=True, required=False)
+    city_display = serializers.SerializerMethodField()
 
     class Meta:
         model = BusinessClient
         fields = ['id', 'name', 'company_name', 'phone', 'email', 'address',
-                  'latitude', 'longitude', 'notes', 'sales_rep', 'sales_rep_name',
+                  'latitude', 'longitude', 'notes', 'city', 'city_display',
+                  'sales_rep', 'sales_rep_name',
                   'request_count', 'created_at']
         read_only_fields = ['id', 'sales_rep', 'sales_rep_name', 'request_count', 'created_at']
+
+    def get_city_display(self, obj):
+        return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)
 
 
 class RegisteredClientSerializer(serializers.ModelSerializer):

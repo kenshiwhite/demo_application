@@ -118,6 +118,8 @@ class BusinessClient(models.Model):
     """A supplier CRM contact; it intentionally has no login credentials."""
     supplier = models.ForeignKey(User, on_delete=models.CASCADE, related_name='business_clients')
     sales_rep = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='crm_clients')
+    # Which of the supplier's service cities this client belongs to.
+    city = models.CharField(max_length=50, choices=KAZAKHSTAN_CITIES)
     name = models.CharField(max_length=200)
     company_name = models.CharField(max_length=200, blank=True)
     phone = models.CharField(max_length=20, blank=True)

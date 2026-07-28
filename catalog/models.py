@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from users.models import KAZAKHSTAN_CITIES
 
 CATEGORY_CHOICES = [
     ('food_beverages', 'Продукты и напитки'),
@@ -25,6 +26,13 @@ class Product(models.Model):
         on_delete=models.CASCADE,
         related_name='products'
     )
+    # Which of the supplier's service cities this stock belongs to. A supplier
+    # selling the same product line in two cities has two Product rows — one
+    # per city — so stock, price, and availability can differ by warehouse.
+    city = models.CharField(
+        max_length=50,
+        choices=KAZAKHSTAN_CITIES,
+    )
     category = models.CharField(
         max_length=50,
         choices=CATEGORY_CHOICES,
@@ -41,5 +49,8 @@ class Product(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        indexes = [models.Index(fields=['supplier', 'city'])]
+
     def __str__(self):
-        return self.name
+        return f'{self.name} ({self.city})'

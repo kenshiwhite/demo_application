@@ -15,6 +15,10 @@ class ProductSerializer(serializers.ModelSerializer):
         source='get_category_display',
         read_only=True
     )
+    city_display = serializers.CharField(
+        source='get_city_display',
+        read_only=True
+    )
 
     class Meta:
         model = Product
@@ -22,10 +26,26 @@ class ProductSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'price',
             'unit', 'stock_quantity', 'is_available',
             'category', 'category_display',
+            'city', 'city_display',
             'supplier', 'supplier_name', 'supplier_profile_picture',
             'image', 'created_at', 'updated_at'
         ]
         read_only_fields = ['supplier', 'created_at', 'updated_at']
+
+    def validate_city(self, value):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return value
+        # A worker manages stock for whichever supplier business they belong
+        # to; a supplier manages their own. Either way city must be one the
+        # business actually services.
+        business = user if user.role == 'supplier' else user.business_supplier
+        if business and business.service_cities and value not in business.service_cities:
+            raise serializers.ValidationError(
+                'Этот город не входит в список городов обслуживания поставщика.'
+            )
+        return value
 
 class CategoryChoicesSerializer(serializers.Serializer):
     value = serializers.CharField()

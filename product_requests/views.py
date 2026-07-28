@@ -37,6 +37,12 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
                 # unclaimed requests (no rep assigned yet) they could pick up.
                 # Requests assigned to a *different* rep are hidden.
                 qs = qs.filter(Q(sales_rep=user) | Q(sales_rep__isnull=True))
+                if user.city:
+                    qs = qs.filter(city=user.city)
+            else:
+                city = self.request.query_params.get('city')
+                if city:
+                    qs = qs.filter(city=city)
             return qs.prefetch_related('items__product').select_related('client', 'supplier', 'sales_rep', 'response')
         return ProductRequest.objects.filter(
             client=user
@@ -66,14 +72,18 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # validate all products belong to the same supplier
+        # validate all products belong to the same supplier and city — one
+        # request is fulfilled from one warehouse, so a cart can't mix stock
+        # from two different cities any more than it can mix suppliers.
         supplier_ids = set()
+        cities = set()
         products = []
         for item in items_data:
             try:
                 product = Product.objects.get(id=item['product_id'])
                 products.append((product, item['quantity']))
                 supplier_ids.add(product.supplier.id)
+                cities.add(product.city)
             except Product.DoesNotExist:
                 return Response(
                     {'detail': f'Товар {item["product_id"]} не найден.'},
@@ -85,10 +95,18 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
                 {'detail': 'Все товары в заявке должны быть от одного поставщика.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        if len(cities) > 1:
+            return Response(
+                {'detail': 'Все товары в заявке должны быть из одного города.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        request_city = next(iter(cities), '')
 
         supplier = products[0][0].supplier
         if is_sales_rep and supplier != request.user.business_supplier:
             return Response({'detail': 'You can only create requests for your supplier business.'}, status=status.HTTP_403_FORBIDDEN)
+        if is_sales_rep and request.user.city and request_city != request.user.city:
+            return Response({'detail': 'Вы можете создавать заявки только для своего города.'}, status=status.HTTP_403_FORBIDDEN)
 
         if is_business_staff:
             # CRM contacts are not authenticated users, so staff-created
@@ -132,6 +150,7 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
             business_client=business_client,
             supplier=supplier,
             sales_rep=sales_rep_for_request,
+            city=request_city,
             note=request.data.get('note', ''),
             delivery_address=request.data.get('delivery_address', business_client.address if business_client else ''),
             delivery_latitude=request.data.get('delivery_latitude') or (business_client.latitude if business_client else None),
@@ -244,6 +263,11 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
         except (User.DoesNotExist, ValueError, TypeError):
             return Response(
                 {'detail': 'Выберите корректного сотрудника из вашей компании.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        if worker.city and product_request.city and worker.city != product_request.city:
+            return Response(
+                {'detail': 'Этот сотрудник работает в другом городе.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 

@@ -339,6 +339,9 @@ class WorkerListCreateView(APIView):
         if request.user.role != User.Role.SUPPLIER:
             return Response({'detail': 'Only suppliers can view workers.'}, status=status.HTTP_403_FORBIDDEN)
         workers = request.user.workers.filter(role=User.Role.SALES_REP).order_by('username')
+        city = request.query_params.get('city')
+        if city:
+            workers = workers.filter(city=city)
         return Response(BusinessMemberSerializer(workers, many=True).data)
 
     def post(self, request):
@@ -356,10 +359,16 @@ class WorkerListCreateView(APIView):
             return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         if User.objects.filter(username=request.data['username']).exists() or User.objects.filter(phone=phone).exists():
             return Response({'detail': 'A user with this username or phone already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Which city this rep is assigned to work — must be one of the
+        # supplier's own service cities. Falls back to the supplier's
+        # primary city for suppliers who haven't set up multi-city coverage.
+        city = request.data.get('city') or request.user.city
+        if request.user.service_cities and city not in request.user.service_cities:
+            return Response({'detail': 'Этот город не входит в список городов обслуживания.'}, status=status.HTTP_400_BAD_REQUEST)
         worker = User.objects.create_user(
             username=request.data['username'], password=request.data['password'],
             email=request.data.get('email', ''), phone=phone, role=User.Role.SALES_REP,
-            company_name=request.user.company_name, city=request.user.city,
+            company_name=request.user.company_name, city=city,
             business_supplier=request.user, is_phone_verified=True
         )
         return Response(BusinessMemberSerializer(worker).data, status=status.HTTP_201_CREATED)
@@ -379,10 +388,18 @@ class BusinessClientListCreateView(APIView):
         if not business:
             return Response({'detail': 'Supplier staff access required.'}, status=status.HTTP_403_FORBIDDEN)
 
+        # A rep assigned to one city only ever works that city's clients;
+        # ?city= lets a supplier (or an unassigned rep) narrow the list too.
+        city = request.query_params.get('city')
+        if request.user.role == User.Role.SALES_REP and request.user.city:
+            city = request.user.city
+
         # CRM contacts a supplier/rep entered manually.
         crm_clients = BusinessClient.objects.filter(supplier=business).annotate(request_count=Count('requests')).order_by('name')
         if request.user.role == User.Role.SALES_REP:
             crm_clients = crm_clients.filter(sales_rep=request.user)
+        if city:
+            crm_clients = crm_clients.filter(city=city)
         crm_data = BusinessClientSerializer(crm_clients, many=True).data
         for row in crm_data:
             row['client_type'] = 'business'
@@ -400,6 +417,8 @@ class BusinessClientListCreateView(APIView):
             registered_clients = registered_clients.filter(
                 Q(assigned_sales_rep=request.user) | Q(assigned_sales_rep__isnull=True)
             )
+        if city:
+            registered_clients = registered_clients.filter(city=city)
         registered_data = RegisteredClientSerializer(
             registered_clients, many=True, context={'request': request}
         ).data
@@ -416,11 +435,21 @@ class BusinessClientListCreateView(APIView):
         missing = [field for field in required if not request.data.get(field)]
         if missing:
             return Response({'detail': 'Client name and address are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        # A rep assigned to one city can only add clients in that city;
+        # otherwise city must be given and be one the business services.
+        city = request.data.get('city')
+        if request.user.role == User.Role.SALES_REP and request.user.city:
+            city = request.user.city
+        if not city:
+            return Response({'detail': 'City is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if business.service_cities and city not in business.service_cities:
+            return Response({'detail': 'Этот город не входит в список городов обслуживания.'}, status=status.HTTP_400_BAD_REQUEST)
         client = BusinessClient.objects.create(
             supplier=business, sales_rep=(request.user if request.user.role == User.Role.SALES_REP else None),
             name=request.data['name'].strip(), company_name=request.data.get('company_name', '').strip(),
             phone=request.data.get('phone', '').strip(), email=request.data.get('email', '').strip(),
             address=request.data['address'].strip(), latitude=request.data.get('latitude') or None,
             longitude=request.data.get('longitude') or None, notes=request.data.get('notes', '').strip(),
+            city=city,
         )
         return Response(BusinessClientSerializer(client).data, status=status.HTTP_201_CREATED)
