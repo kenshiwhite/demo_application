@@ -6,6 +6,8 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+GATEWAY_BASE_URL = 'https://gatewayapi.telegram.org/'
+
 
 def normalize_phone(phone):
     digits = re.sub(r'\D', '', phone or '')
@@ -21,57 +23,57 @@ def normalize_phone(phone):
     return f'+{digits}'
 
 
-def format_phone_for_smsc(phone):
-    return normalize_phone(phone).lstrip('+')
+def send_telegram_verification(phone, code):
+    """
+    Deliver a verification code via Telegram Gateway
+    (https://core.telegram.org/gateway) instead of SMS. We generate and
+    store the code ourselves (User.generate_phone_verification_code), so
+    Telegram is used purely as a delivery channel here — we pass our own
+    `code` and never need to call checkVerificationStatus, meaning the
+    rest of the verify-phone flow (attempts, expiry, code comparison)
+    stays exactly as it was with SMSC.
 
-
-def send_sms(phone, message):
-    login = getattr(settings, 'SMSC_LOGIN', '')
-    password = getattr(settings, 'SMSC_PASSWORD', '')
-    sender = getattr(settings, 'SMSC_SENDER', '')
-
-    if not login or not password:
-        logger.info('SMSC credentials are not configured. SMS skipped for %s', phone)
+    Note the real trade-off versus SMS: this only reaches numbers that
+    have an active Telegram account. Anyone without Telegram gets
+    nothing back from this call — there is no separate "undeliverable"
+    signal beyond `ok: false` / a non-2xx response, which we treat the
+    same as any other delivery failure below.
+    """
+    token = getattr(settings, 'TELEGRAM_GATEWAY_TOKEN', '')
+    if not token:
+        logger.info('Telegram Gateway token is not configured. Verification skipped for %s', phone)
         return {'debug': True, 'sent': False}
 
-    params = {
-        'login': login,
-        'psw': password,
-        'phones': format_phone_for_smsc(phone),
-        'mes': message,
-        'fmt': 3,
-        'charset': 'utf-8',
-    }
-    if sender:
-        params['sender'] = sender
-
-    response = requests.get(
-        'https://smsc.kz/sys/send.php',
-        params=params,
+    response = requests.post(
+        GATEWAY_BASE_URL + 'sendVerificationMessage',
+        headers={'Authorization': f'Bearer {token}'},
+        json={
+            'phone_number': phone,
+            'code': code,
+            'sender_username': getattr(settings, 'TELEGRAM_GATEWAY_SENDER', '') or None,
+            'ttl': 600,  # matches the 10-minute expiry set in generate_phone_verification_code
+        },
         timeout=10,
     )
     response.raise_for_status()
     data = response.json()
 
-    if data.get('error'):
-        logger.warning('SMSC rejected message for %s: %s', phone, data)
-        raise RuntimeError(data.get('error'))
+    if not data.get('ok'):
+        logger.warning('Telegram Gateway rejected verification for %s: %s', phone, data)
+        raise RuntimeError(data.get('error', 'Telegram Gateway request failed'))
 
-    return data
+    return data.get('result', {})
 
 
 def send_phone_verification_code(user):
     code = user.generate_phone_verification_code()
     try:
-        result = send_sms(
-            user.phone,
-            f'InStock verification code: {code}',
-        )
+        result = send_telegram_verification(user.phone, code)
     except Exception as exc:
         if not getattr(settings, 'SMS_DEBUG_CODES', False):
             raise
         logger.warning(
-            'SMS delivery failed for %s, returning debug code: %s',
+            'Telegram verification delivery failed for %s, returning debug code: %s',
             user.phone,
             exc,
         )

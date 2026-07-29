@@ -221,8 +221,11 @@ EMAIL_TIMEOUT = 10
 BREVO_API_KEY = config('BREVO_API_KEY', default='')
 POSTMARK_API_KEY = config('POSTMARK_API_KEY', default='')
 
-# SMSC.kz settings
-SMSC_LOGIN = config('SMSC_LOGIN', default='')
-SMSC_PASSWORD = config('SMSC_PASSWORD', default='')
-SMSC_SENDER = config('SMSC_SENDER', default='')
+# Telegram Gateway settings (https://core.telegram.org/gateway) — used to
+# deliver phone verification codes. Replaces SMSC, which only reliably
+# delivered to Kcell numbers without buying additional operator routes.
+TELEGRAM_GATEWAY_TOKEN = config('TELEGRAM_GATEWAY_TOKEN', default='')
+# Optional: username of a verified Telegram channel to send codes "from".
+# Leave blank to use Telegram's default "Verification codes" sender.
+TELEGRAM_GATEWAY_SENDER = config('TELEGRAM_GATEWAY_SENDER', default='')
 SMS_DEBUG_CODES = config('SMS_DEBUG_CODES', default=DEBUG, cast=bool)
