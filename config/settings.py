@@ -220,6 +220,9 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='SupplierApp <noreply@
 EMAIL_TIMEOUT = 10
 BREVO_API_KEY = config('BREVO_API_KEY', default='')
 POSTMARK_API_KEY = config('POSTMARK_API_KEY', default='')
+# Must be a verified Sender Signature (or a domain with verified DKIM/SPF)
+# on the Postmark account that owns POSTMARK_API_KEY, or every send fails.
+POSTMARK_FROM_EMAIL = config('POSTMARK_FROM_EMAIL', default='')
 
 # Telegram Gateway settings (https://core.telegram.org/gateway) — used to
 # deliver phone verification codes. Replaces SMSC, which only reliably

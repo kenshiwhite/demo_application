@@ -66,7 +66,10 @@ class RegisterView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         user = serializer.save()
-        user.generate_verification_code()
+        try:
+            send_verification_email(user)
+        except Exception as exc:
+            logger.warning('Failed to send verification email: %s', exc)
         try:
             send_phone_verification_code(user)
         except Exception as exc:
@@ -205,8 +208,20 @@ class ResendVerificationView(APIView):
         user = request.user
         if user.is_email_verified:
             return Response({'detail': 'Email уже подтверждён'})
-        code = user.generate_verification_code()
-        return Response({'detail': 'Код сгенерирован', 'code': code})
+        try:
+            result = send_verification_email(user)
+        except Exception:
+            return Response(
+                {'detail': 'Не удалось отправить письмо. Попробуйте позже.'},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+        response_data = {'detail': 'Код отправлен на почту'}
+        if result.get('debug'):
+            # Email delivery isn't configured/working — surface the code
+            # directly so development/staging can still proceed. This
+            # never happens in production once Postmark is configured.
+            response_data['code'] = result['code']
+        return Response(response_data)
 
 class MeView(APIView):
     permission_classes = [permissions.IsAuthenticated]
