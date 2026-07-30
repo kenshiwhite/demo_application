@@ -503,8 +503,10 @@ class AssignClientRepView(APIView):
 
         elif client_type == 'registered':
             try:
-                registered = User.objects.get(id=pk, role=User.Role.CLIENT, requests__supplier=business)
+                registered = User.objects.get(id=pk, role=User.Role.CLIENT)
             except User.DoesNotExist:
+                return Response({'detail': 'Клиент не найден.'}, status=status.HTTP_404_NOT_FOUND)
+            if not registered.requests.filter(supplier=business).exists():
                 return Response({'detail': 'Клиент не найден.'}, status=status.HTTP_404_NOT_FOUND)
             if request.user.role == User.Role.SALES_REP and registered.assigned_sales_rep_id not in (None, request.user.id):
                 return Response({'detail': 'Этот клиент закреплён за другим сотрудником.'}, status=status.HTTP_403_FORBIDDEN)
