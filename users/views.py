@@ -468,3 +468,48 @@ class BusinessClientListCreateView(APIView):
             city=city,
         )
         return Response(BusinessClientSerializer(client).data, status=status.HTTP_201_CREATED)
+
+
+class AssignClientRepView(APIView):
+    """Reassign (or clear) which sales rep is responsible for a client —
+    either a CRM contact (BusinessClient) or a real registered client
+    (User.assigned_sales_rep). A supplier can reassign anyone; a sales rep
+    can only hand off a client that's currently theirs (or unclaimed)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, client_type, pk):
+        business = supplier_business(request.user)
+        if not business:
+            return Response({'detail': 'Supplier staff access required.'}, status=status.HTTP_403_FORBIDDEN)
+
+        rep_id = request.data.get('sales_rep_id')
+        worker = None
+        if rep_id:
+            try:
+                worker = User.objects.get(id=rep_id, role=User.Role.SALES_REP, business_supplier=business)
+            except (User.DoesNotExist, ValueError, TypeError):
+                return Response({'detail': 'Выберите корректного сотрудника из вашей компании.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if client_type == 'business':
+            try:
+                contact = BusinessClient.objects.get(id=pk, supplier=business)
+            except BusinessClient.DoesNotExist:
+                return Response({'detail': 'Клиент не найден.'}, status=status.HTTP_404_NOT_FOUND)
+            if request.user.role == User.Role.SALES_REP and contact.sales_rep_id not in (None, request.user.id):
+                return Response({'detail': 'Этот клиент закреплён за другим сотрудником.'}, status=status.HTTP_403_FORBIDDEN)
+            contact.sales_rep = worker
+            contact.save(update_fields=['sales_rep'])
+            return Response(BusinessClientSerializer(contact).data)
+
+        elif client_type == 'registered':
+            try:
+                registered = User.objects.get(id=pk, role=User.Role.CLIENT, requests__supplier=business)
+            except User.DoesNotExist:
+                return Response({'detail': 'Клиент не найден.'}, status=status.HTTP_404_NOT_FOUND)
+            if request.user.role == User.Role.SALES_REP and registered.assigned_sales_rep_id not in (None, request.user.id):
+                return Response({'detail': 'Этот клиент закреплён за другим сотрудником.'}, status=status.HTTP_403_FORBIDDEN)
+            registered.assigned_sales_rep = worker
+            registered.save(update_fields=['assigned_sales_rep'])
+            return Response(RegisteredClientSerializer(registered, context={'request': request}).data)
+
+        return Response({'detail': 'Unknown client type.'}, status=status.HTTP_400_BAD_REQUEST)
