@@ -129,3 +129,79 @@ def get_supplier_analytics(supplier, period_days=30):
             for rep in sales_reps
         ],
     }
+
+
+def get_rep_analytics(rep, period_days=30):
+    """Same shape as get_supplier_analytics, but scoped to just the
+    requests a single sales rep personally handled — this is what a rep
+    sees on their own stats page, not the whole company's numbers."""
+    since = timezone.now() - timedelta(days=period_days)
+
+    fulfilled = ProductRequest.objects.filter(
+        sales_rep=rep,
+        status='fulfilled',
+        updated_at__gte=since
+    )
+
+    total_revenue = fulfilled.aggregate(total=Sum('total_price'))['total'] or 0
+    total_orders = fulfilled.count()
+    avg_order = fulfilled.aggregate(avg=Avg('total_price'))['avg'] or 0
+    total_products_sold = RequestItem.objects.filter(
+        request__in=fulfilled
+    ).aggregate(total=Sum('quantity'))['total'] or 0
+
+    from django.db.models.functions import TruncDate
+    revenue_by_day = fulfilled.annotate(
+        date=TruncDate('updated_at')
+    ).values('date').annotate(
+        revenue=Sum('total_price'),
+        orders=Count('id')
+    ).order_by('date')
+
+    top_products = RequestItem.objects.filter(
+        request__in=fulfilled
+    ).values('product__name').annotate(
+        total_quantity=Sum('quantity'),
+        total_revenue=Sum('total')
+    ).order_by('-total_revenue')[:5]
+
+    status_counts = ProductRequest.objects.filter(
+        sales_rep=rep
+    ).values('status').annotate(count=Count('id'))
+
+    pending_count = ProductRequest.objects.filter(
+        sales_rep=rep,
+        status='pending'
+    ).count()
+
+    client_count = BusinessClient.objects.filter(sales_rep=rep).count()
+    client_count += User.objects.filter(role=User.Role.CLIENT, assigned_sales_rep=rep).count()
+
+    return {
+        'total_revenue': float(total_revenue),
+        'total_orders': total_orders,
+        'avg_order_value': float(avg_order),
+        'total_products_sold': total_products_sold,
+        'pending_requests': pending_count,
+        'client_count': client_count,
+        'revenue_by_day': [
+            {
+                'date': str(item['date']),
+                'revenue': float(item['revenue']),
+                'orders': item['orders']
+            }
+            for item in revenue_by_day
+        ],
+        'top_products': [
+            {
+                'name': item['product__name'],
+                'quantity': item['total_quantity'],
+                'revenue': float(item['total_revenue'])
+            }
+            for item in top_products
+        ],
+        'status_counts': {
+            item['status']: item['count']
+            for item in status_counts
+        },
+    }

@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db.models import Q
 from users.permissions import IsSupplier, IsSupplierStaff
-from .analytics import get_supplier_analytics
+from .analytics import get_supplier_analytics, get_rep_analytics
 from rest_framework import viewsets, permissions
 from .models import Product, CATEGORY_CHOICES
 from .serializers import ProductSerializer
@@ -72,4 +72,14 @@ class ProductViewSet(viewsets.ModelViewSet):
 def supplier_analytics(request):
     period = int(request.query_params.get('period', 30))
     data = get_supplier_analytics(request.user, period)
+    return Response(data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def rep_analytics(request):
+    if request.user.role != 'sales_rep':
+        return Response({'detail': 'Only sales reps can view their own stats here.'}, status=403)
+    period = int(request.query_params.get('period', 30))
+    data = get_rep_analytics(request.user, period)
     return Response(data)
