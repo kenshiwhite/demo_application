@@ -119,3 +119,30 @@ class SupplierResponse(models.Model):
 
     def __str__(self):
         return f"Response to request #{self.request.id}"
+
+
+class RequestPhotoReport(models.Model):
+    """A delivery/fulfillment photo attached to a request by whoever
+    handled it (the supplier or the sales rep who worked the order) —
+    e.g. proof of delivery, loaded goods, a signed invoice. Shown on the
+    request detail screen and rolled up per-client in the Clients screen."""
+    request = models.ForeignKey(
+        ProductRequest,
+        on_delete=models.CASCADE,
+        related_name='photo_reports'
+    )
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='uploaded_photo_reports'
+    )
+    image = models.ImageField(upload_to='photo_reports/')
+    caption = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Photo report for request #{self.request_id}"

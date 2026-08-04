@@ -2,8 +2,8 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import ProductRequest, RequestItem, SupplierResponse
-from .serializers import ProductRequestSerializer, SupplierResponseSerializer
+from .models import ProductRequest, RequestItem, SupplierResponse, RequestPhotoReport
+from .serializers import ProductRequestSerializer, SupplierResponseSerializer, RequestPhotoReportSerializer
 from users.permissions import IsSupplier, IsClient, IsSupplierStaff
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -53,6 +53,10 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated()]
         if self.action in ['respond', 'update_status']:
             return [permissions.IsAuthenticated(), IsSupplierStaff()]
+        if self.action == 'photo_reports':
+            if self.request.method == 'POST':
+                return [permissions.IsAuthenticated(), IsSupplierStaff()]
+            return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated()]
 
     def create(self, request, *args, **kwargs):
@@ -183,6 +187,36 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
         return super().partial_update(request, *args, **kwargs)
+
+    @action(detail=True, methods=['get', 'post'])
+    def photo_reports(self, request, pk=None):
+        product_request = self.get_object()
+
+        if request.method == 'GET':
+            reports = product_request.photo_reports.all()
+            return Response(RequestPhotoReportSerializer(reports, many=True, context={'request': request}).data)
+
+        # POST — only the supplier's own staff (supplier or their sales
+        # rep) can attach a photo report, and only to their own request.
+        business = supplier_business(request.user)
+        if not business or product_request.supplier != business:
+            return Response(
+                {'detail': 'Вы можете добавлять фотоотчёты только к своим заявкам.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        if not request.data.get('image'):
+            return Response({'detail': 'Прикрепите фото.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        report = RequestPhotoReport.objects.create(
+            request=product_request,
+            uploaded_by=request.user,
+            image=request.data['image'],
+            caption=request.data.get('caption', ''),
+        )
+        return Response(
+            RequestPhotoReportSerializer(report, context={'request': request}).data,
+            status=status.HTTP_201_CREATED
+        )
 
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsSupplier])
     def respond(self, request, pk=None):

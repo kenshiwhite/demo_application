@@ -1,6 +1,6 @@
 # product_requests/serializers.py
 from rest_framework import serializers
-from .models import ProductRequest, RequestItem, SupplierResponse
+from .models import ProductRequest, RequestItem, SupplierResponse, RequestPhotoReport
 
 class RequestItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
@@ -33,6 +33,14 @@ class SupplierResponseSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['supplier', 'created_at']
 
+class RequestPhotoReportSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.CharField(source='uploaded_by.username', read_only=True)
+
+    class Meta:
+        model = RequestPhotoReport
+        fields = ['id', 'request', 'image', 'caption', 'uploaded_by', 'uploaded_by_name', 'created_at']
+        read_only_fields = ['request', 'uploaded_by', 'created_at']
+
 class ProductRequestSerializer(serializers.ModelSerializer):
     client_name = serializers.SerializerMethodField()
     client_phone = serializers.SerializerMethodField()
@@ -43,6 +51,7 @@ class ProductRequestSerializer(serializers.ModelSerializer):
     sales_rep_name = serializers.CharField(source='sales_rep.username', read_only=True)
     items = RequestItemSerializer(many=True, read_only=True)
     response = SupplierResponseSerializer(read_only=True)
+    photo_reports = RequestPhotoReportSerializer(many=True, read_only=True)
 
     def get_client_name(self, obj):
         return obj.client.username if obj.client else obj.business_client.name
@@ -76,7 +85,7 @@ class ProductRequestSerializer(serializers.ModelSerializer):
             'desired_delivery_date',
             'contact_phone',
             'cancelled_by', 'cancel_reason', 'cancelled_at',
-            'response', 'created_at', 'updated_at'
+            'response', 'photo_reports', 'created_at', 'updated_at'
         ]
         read_only_fields = [
             'client', 'business_client', 'supplier', 'sales_rep', 'status',
