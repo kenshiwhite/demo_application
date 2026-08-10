@@ -133,10 +133,19 @@ class BusinessMemberSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'phone', 'company_name', 'description',
             'profile_picture',
+<<<<<<< Updated upstream
             'city', 'city_display', 'date_joined', 'assigned_sales_rep', 'assigned_sales_rep_name',
+=======
+            'city', 'date_joined', 'assigned_sales_rep', 'assigned_sales_rep_name',
+            'request_count', 'salary', 'bonus'
+        ]
+        read_only_fields = [
+            'id', 'username', 'email', 'phone', 'company_name', 'description',
+            'profile_picture',
+            'city', 'date_joined', 'assigned_sales_rep', 'assigned_sales_rep_name',
+>>>>>>> Stashed changes
             'request_count'
         ]
-        read_only_fields = fields
 
     def get_city_display(self, obj):
         return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)
@@ -154,6 +163,7 @@ class BusinessClientSerializer(serializers.ModelSerializer):
                   'sales_rep', 'sales_rep_name',
                   'request_count', 'created_at']
         read_only_fields = ['id', 'sales_rep', 'sales_rep_name', 'request_count', 'created_at']
+<<<<<<< Updated upstream
 
     def get_city_display(self, obj):
         return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)
@@ -185,3 +195,5 @@ class RegisteredClientSerializer(serializers.ModelSerializer):
 
     def get_city_display(self, obj):
         return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)
+=======
+>>>>>>> Stashed changes

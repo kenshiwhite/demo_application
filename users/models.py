@@ -78,6 +78,8 @@ class User(AbstractUser):
         'self', on_delete=models.CASCADE, null=True, blank=True,
         related_name='workers', limit_choices_to={'role': 'supplier'}
     )
+    salary = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    bonus = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     # A client created by a sales representative remains assigned to them.
     assigned_sales_rep = models.ForeignKey(
         'self', on_delete=models.SET_NULL, null=True, blank=True,
