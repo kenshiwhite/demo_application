@@ -42,7 +42,6 @@ class Product(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    cost_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     unit = models.CharField(max_length=50)
     stock_quantity = models.PositiveIntegerField(default=0)
     is_available = models.BooleanField(default=True)
@@ -54,32 +53,4 @@ class Product(models.Model):
         indexes = [models.Index(fields=['supplier', 'city'])]
 
     def __str__(self):
-<<<<<<< Updated upstream
         return f'{self.name} ({self.city})'
-=======
-        return self.name
-
-
-class SupplierExpense(models.Model):
-    class Period(models.TextChoices):
-        DAY = 'day', 'Day'
-        MONTH = 'month', 'Month'
-
-    supplier = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='manual_expenses'
-    )
-    title = models.CharField(max_length=200)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    date = models.DateField()
-    period = models.CharField(max_length=10, choices=Period.choices, default=Period.DAY)
-    note = models.TextField(blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['-date', '-created_at']
-
-    def __str__(self):
-        return f'{self.title} ({self.amount})'
->>>>>>> Stashed changes

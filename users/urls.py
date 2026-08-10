@@ -6,11 +6,7 @@ from .views import (
     UpdateEmailView, UpdatePushTokenView, DeleteAccountView, DeleteProfilePictureView, get_cities,
     SendPhoneVerificationView, VerifyPhoneView,
     PhoneLoginRequestView, PhoneLoginVerifyView, WorkerListCreateView,
-<<<<<<< Updated upstream
     BusinessClientListCreateView, AssignClientRepView
-=======
-    WorkerDetailView, BusinessClientListCreateView
->>>>>>> Stashed changes
 )
 
 urlpatterns = [
@@ -32,7 +28,6 @@ urlpatterns = [
     path('phone-login/verify/', PhoneLoginVerifyView.as_view()),
     path('cities/', get_cities),
     path('workers/', WorkerListCreateView.as_view()),
-    path('workers/<int:pk>/', WorkerDetailView.as_view()),
     path('business-clients/', BusinessClientListCreateView.as_view()),
     path('clients/<str:client_type>/<int:pk>/assign-rep/', AssignClientRepView.as_view()),
 ]

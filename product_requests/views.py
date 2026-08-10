@@ -25,11 +25,7 @@ def supplier_business(user):
 
 class ProductRequestViewSet(viewsets.ModelViewSet):
     serializer_class = ProductRequestSerializer
-<<<<<<< Updated upstream
     pagination_class = None  # app has no "load more" UI; never silently hide requests behind a page 2
-=======
-    pagination_class = None
->>>>>>> Stashed changes
 
     def get_queryset(self):
         user = self.request.user
