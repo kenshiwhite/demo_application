@@ -23,7 +23,7 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'description', 'price',
+            'id', 'name', 'description', 'price', 'cost_price',
             'unit', 'stock_quantity', 'is_available',
             'category', 'category_display',
             'city', 'city_display',
@@ -31,6 +31,22 @@ class ProductSerializer(serializers.ModelSerializer):
             'image', 'created_at', 'updated_at'
         ]
         read_only_fields = ['supplier', 'created_at', 'updated_at']
+
+    def to_representation(self, instance):
+        # Cost price is margin-sensitive business data — only the product's
+        # own supplier (or their sales reps) should ever see it in a
+        # response. A client browsing the catalog must never receive
+        # another business's cost basis. Writing it (create/update) is
+        # unaffected — this only strips it from what gets read back.
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        business = None
+        if user and user.is_authenticated:
+            business = user if user.role == 'supplier' else user.business_supplier
+        if not business or business != instance.supplier:
+            data['cost_price'] = None
+        return data
 
     def validate_city(self, value):
         request = self.context.get('request')

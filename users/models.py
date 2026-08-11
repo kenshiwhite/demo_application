@@ -83,6 +83,10 @@ class User(AbstractUser):
         'self', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='assigned_clients', limit_choices_to={'role': 'sales_rep'}
     )
+    # Only meaningful for role='sales_rep' — a fixed monthly salary the
+    # supplier pays this worker, used by the finance tab's expense
+    # calculation. Left blank/0 for workers not on a fixed salary.
+    base_salary = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     def generate_verification_code(self):
         import random, string

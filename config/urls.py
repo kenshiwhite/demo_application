@@ -29,6 +29,7 @@ urlpatterns = [
     path('api/catalog/', include('catalog.urls')),  # ← add this
     path('api/requests/', include('product_requests.urls')),
     path('api/notifications/', include('notifications.urls')),
+    path('api/finance/', include('finance.urls')),
 ]
 
 # add this at the very bottom of the file, outside urlpatterns

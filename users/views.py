@@ -351,13 +351,14 @@ class WorkerListCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        if request.user.role != User.Role.SUPPLIER:
-            return Response({'detail': 'Only suppliers can view workers.'}, status=status.HTTP_403_FORBIDDEN)
-        workers = request.user.workers.filter(role=User.Role.SALES_REP).order_by('username')
+        business = supplier_business(request.user)
+        if not business:
+            return Response({'detail': 'Supplier staff access required.'}, status=status.HTTP_403_FORBIDDEN)
+        workers = business.workers.filter(role=User.Role.SALES_REP).order_by('username')
         city = request.query_params.get('city')
         if city:
             workers = workers.filter(city=city)
-        return Response(BusinessMemberSerializer(workers, many=True).data)
+        return Response(BusinessMemberSerializer(workers, many=True, context={'request': request}).data)
 
     def post(self, request):
         if request.user.role != User.Role.SUPPLIER:
@@ -380,13 +381,14 @@ class WorkerListCreateView(APIView):
         city = request.data.get('city') or request.user.city
         if request.user.service_cities and city not in request.user.service_cities:
             return Response({'detail': 'Этот город не входит в список городов обслуживания.'}, status=status.HTTP_400_BAD_REQUEST)
+        base_salary = request.data.get('base_salary') or None
         worker = User.objects.create_user(
             username=request.data['username'], password=request.data['password'],
             email=request.data.get('email', ''), phone=phone, role=User.Role.SALES_REP,
-            company_name=request.user.company_name, city=city,
+            company_name=request.user.company_name, city=city, base_salary=base_salary,
             business_supplier=request.user, is_phone_verified=True
         )
-        return Response(BusinessMemberSerializer(worker).data, status=status.HTTP_201_CREATED)
+        return Response(BusinessMemberSerializer(worker, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
 
 class BusinessClientListCreateView(APIView):

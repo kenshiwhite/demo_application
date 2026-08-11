@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'product_requests',
     'notifications',
     'django_filters',
+    'finance',
 ]
 
 MIDDLEWARE = [

@@ -42,6 +42,10 @@ class Product(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
+    cost_price = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='What this unit actually costs the supplier — used to compute profit margin. Optional; treated as 0 if unset.'
+    )
     unit = models.CharField(max_length=50)
     stock_quantity = models.PositiveIntegerField(default=0)
     is_available = models.BooleanField(default=True)

@@ -127,6 +127,7 @@ class BusinessMemberSerializer(serializers.ModelSerializer):
     )
     request_count = serializers.IntegerField(read_only=True, required=False)
     city_display = serializers.SerializerMethodField()
+    base_salary = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -134,12 +135,22 @@ class BusinessMemberSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'phone', 'company_name', 'description',
             'profile_picture',
             'city', 'city_display', 'date_joined', 'assigned_sales_rep', 'assigned_sales_rep_name',
-            'request_count'
+            'request_count', 'base_salary'
         ]
         read_only_fields = fields
 
     def get_city_display(self, obj):
         return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)
+
+    def get_base_salary(self, obj):
+        # Salary is only visible to the supplier who owns this worker — a
+        # sales rep listing their colleagues (e.g. the reassignment picker)
+        # must never see anyone's pay.
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user and user.is_authenticated and user.role == 'supplier' and obj.business_supplier_id == user.id:
+            return str(obj.base_salary) if obj.base_salary is not None else None
+        return None
 
 
 class BusinessClientSerializer(serializers.ModelSerializer):
