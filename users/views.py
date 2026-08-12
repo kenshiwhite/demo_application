@@ -1,4 +1,5 @@
 from rest_framework import generics, permissions, status
+from decimal import Decimal, InvalidOperation
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
@@ -381,7 +382,11 @@ class WorkerListCreateView(APIView):
         city = request.data.get('city') or request.user.city
         if request.user.service_cities and city not in request.user.service_cities:
             return Response({'detail': 'Этот город не входит в список городов обслуживания.'}, status=status.HTTP_400_BAD_REQUEST)
-        base_salary = request.data.get('base_salary') or None
+        raw_salary = request.data.get('base_salary')
+        try:
+            base_salary = Decimal(str(raw_salary)) if raw_salary not in (None, '') else None
+        except InvalidOperation:
+            return Response({'detail': 'Некорректный оклад.'}, status=status.HTTP_400_BAD_REQUEST)
         worker = User.objects.create_user(
             username=request.data['username'], password=request.data['password'],
             email=request.data.get('email', ''), phone=phone, role=User.Role.SALES_REP,
@@ -403,9 +408,17 @@ class WorkerDetailView(APIView):
             return Response({'detail': 'Сотрудник не найден.'}, status=status.HTTP_404_NOT_FOUND)
 
         for field in ('base_salary', 'bonus_sales_threshold', 'bonus_percent'):
-            if field in request.data:
-                value = request.data[field]
-                setattr(worker, field, value if value not in ('', None) else None)
+            if field not in request.data:
+                continue
+            raw = request.data[field]
+            if raw in ('', None):
+                setattr(worker, field, None)
+                continue
+            try:
+                setattr(worker, field, Decimal(str(raw)))
+            except (InvalidOperation, ValueError):
+                return Response({'detail': f'Некорректное значение для поля {field}.'}, status=status.HTTP_400_BAD_REQUEST)
+
         worker.save(update_fields=['base_salary', 'bonus_sales_threshold', 'bonus_percent'])
         return Response(BusinessMemberSerializer(worker, context={'request': request}).data)
 
