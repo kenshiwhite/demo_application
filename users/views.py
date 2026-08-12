@@ -391,6 +391,25 @@ class WorkerListCreateView(APIView):
         return Response(BusinessMemberSerializer(worker, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
 
+class WorkerDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk):
+        if request.user.role != User.Role.SUPPLIER:
+            return Response({'detail': 'Only suppliers can update worker pay.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            worker = User.objects.get(id=pk, role=User.Role.SALES_REP, business_supplier=request.user)
+        except User.DoesNotExist:
+            return Response({'detail': 'Сотрудник не найден.'}, status=status.HTTP_404_NOT_FOUND)
+
+        for field in ('base_salary', 'bonus_sales_threshold', 'bonus_percent'):
+            if field in request.data:
+                value = request.data[field]
+                setattr(worker, field, value if value not in ('', None) else None)
+        worker.save(update_fields=['base_salary', 'bonus_sales_threshold', 'bonus_percent'])
+        return Response(BusinessMemberSerializer(worker, context={'request': request}).data)
+
+
 class BusinessClientListCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

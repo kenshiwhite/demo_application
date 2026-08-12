@@ -87,6 +87,11 @@ class User(AbstractUser):
     # supplier pays this worker, used by the finance tab's expense
     # calculation. Left blank/0 for workers not on a fixed salary.
     base_salary = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    # Bonus rule for this rep: hit `bonus_sales_threshold` in fulfilled
+    # sales within a calendar month and they become eligible for a bonus
+    # of `bonus_percent`% of their base_salary. Left blank = no rule set.
+    bonus_sales_threshold = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    bonus_percent = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
 
     def generate_verification_code(self):
         import random, string
