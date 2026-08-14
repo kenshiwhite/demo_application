@@ -82,4 +82,33 @@ def rep_analytics(request):
         return Response({'detail': 'Only sales reps can view their own stats here.'}, status=403)
     period = int(request.query_params.get('period', 30))
     data = get_rep_analytics(request.user, period)
+
+    # Bonus progress is always measured against the current calendar
+    # month (matching the bonus rule itself), independent of whatever
+    # `period` window the rest of this response uses.
+    rep = request.user
+    data['bonus_sales_threshold'] = str(rep.bonus_sales_threshold) if rep.bonus_sales_threshold is not None else None
+    data['bonus_percent'] = str(rep.bonus_percent) if rep.bonus_percent is not None else None
+    if rep.bonus_sales_threshold:
+        from django.utils import timezone
+        from django.db.models import Sum
+        from product_requests.models import ProductRequest
+        now = timezone.localtime()
+        month_sales = ProductRequest.objects.filter(
+            sales_rep=rep, status='fulfilled',
+            updated_at__year=now.year, updated_at__month=now.month,
+        ).aggregate(total=Sum('total_price'))['total'] or 0
+        data['current_month_sales'] = str(month_sales)
+        data['bonus_progress_percent'] = round(min(float(month_sales / rep.bonus_sales_threshold) * 100, 100), 1)
+        data['bonus_earned'] = month_sales >= rep.bonus_sales_threshold
+        data['bonus_amount'] = (
+            str(round(rep.base_salary * rep.bonus_percent / 100, 2))
+            if data['bonus_earned'] and rep.base_salary and rep.bonus_percent else None
+        )
+    else:
+        data['current_month_sales'] = None
+        data['bonus_progress_percent'] = None
+        data['bonus_earned'] = False
+        data['bonus_amount'] = None
+
     return Response(data)
