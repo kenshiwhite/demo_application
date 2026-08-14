@@ -7,6 +7,7 @@ class Notification(models.Model):
         REQUEST_ACCEPTED = 'request_accepted', 'Request Accepted'
         REQUEST_DECLINED = 'request_declined', 'Request Declined'
         REQUEST_FULFILLED = 'request_fulfilled', 'Request Fulfilled'
+        REQUEST_CANCELLED = 'request_cancelled', 'Request Cancelled'
         NEW_RESPONSE = 'new_response', 'New Response'
 
     recipient = models.ForeignKey(

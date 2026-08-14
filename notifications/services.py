@@ -86,15 +86,15 @@ def notify_request_cancelled(request_obj, cancelled_by):
         recipient = client
         if not recipient:
             return
-        title = f'Р—Р°СЏРІРєР° #{request_obj.id} РѕС‚РјРµРЅРµРЅР°'
-        body = f'{supplier.company_name or supplier.username} РѕС‚РјРµРЅРёР» Р·Р°СЏРІРєСѓ'
+        title = f'Заявка #{request_obj.id} отменена'
+        body = f'{supplier.company_name or supplier.username} отменил заявку'
     else:
         recipient = supplier
         if not recipient:
             return
         client_name = (client.company_name or client.username) if client else request_obj.business_client.name
-        title = f'Р—Р°СЏРІРєР° #{request_obj.id} РѕС‚РјРµРЅРµРЅР°'
-        body = f'{client_name} РѕС‚РјРµРЅРёР» Р·Р°СЏРІРєСѓ'
+        title = f'Заявка #{request_obj.id} отменена'
+        body = f'{client_name} отменил заявку'
 
     Notification.objects.create(
         recipient=recipient,
