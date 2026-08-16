@@ -133,9 +133,7 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 
 class BusinessMemberSerializer(serializers.ModelSerializer):
-    assigned_sales_rep_name = serializers.CharField(
-        source='assigned_sales_rep.username', read_only=True
-    )
+    assigned_sales_rep_name = serializers.SerializerMethodField()
     request_count = serializers.IntegerField(read_only=True, required=False)
     city_display = serializers.SerializerMethodField()
     base_salary = serializers.SerializerMethodField()
@@ -149,7 +147,7 @@ class BusinessMemberSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'email', 'phone', 'company_name', 'description',
+            'id', 'first_name', 'username', 'email', 'phone', 'company_name', 'description',
             'profile_picture',
             'city', 'city_display', 'date_joined', 'assigned_sales_rep', 'assigned_sales_rep_name',
             'request_count', 'base_salary',
@@ -160,6 +158,12 @@ class BusinessMemberSerializer(serializers.ModelSerializer):
 
     def get_city_display(self, obj):
         return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)
+
+    def get_assigned_sales_rep_name(self, obj):
+        rep = obj.assigned_sales_rep
+        if not rep:
+            return None
+        return rep.first_name or rep.username
 
     def _is_owner(self, obj):
         # Salary/bonus data is only visible to the supplier who owns this
@@ -223,7 +227,7 @@ class BusinessMemberSerializer(serializers.ModelSerializer):
 
 
 class BusinessClientSerializer(serializers.ModelSerializer):
-    sales_rep_name = serializers.CharField(source='sales_rep.username', read_only=True)
+    sales_rep_name = serializers.SerializerMethodField()
     request_count = serializers.IntegerField(read_only=True, required=False)
     city_display = serializers.SerializerMethodField()
 
@@ -238,6 +242,11 @@ class BusinessClientSerializer(serializers.ModelSerializer):
     def get_city_display(self, obj):
         return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)
 
+    def get_sales_rep_name(self, obj):
+        if not obj.sales_rep:
+            return None
+        return obj.sales_rep.first_name or obj.sales_rep.username
+
 
 class RegisteredClientSerializer(serializers.ModelSerializer):
     """Represents a real (self-registered) client User inside the same
@@ -246,7 +255,7 @@ class RegisteredClientSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source='username', read_only=True)
     address = serializers.SerializerMethodField()
     sales_rep = serializers.IntegerField(source='assigned_sales_rep_id', read_only=True)
-    sales_rep_name = serializers.CharField(source='assigned_sales_rep.username', read_only=True)
+    sales_rep_name = serializers.SerializerMethodField()
     city_display = serializers.SerializerMethodField()
     request_count = serializers.IntegerField(read_only=True, required=False)
 
@@ -262,6 +271,12 @@ class RegisteredClientSerializer(serializers.ModelSerializer):
     def get_address(self, obj):
         last_request = obj.requests.order_by('-created_at').first()
         return last_request.delivery_address if last_request else ''
+
+    def get_sales_rep_name(self, obj):
+        rep = obj.assigned_sales_rep
+        if not rep:
+            return None
+        return rep.first_name or rep.username
 
     def get_city_display(self, obj):
         return dict(KAZAKHSTAN_CITIES).get(obj.city, obj.city)

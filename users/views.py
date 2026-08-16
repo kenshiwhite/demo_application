@@ -364,10 +364,10 @@ class WorkerListCreateView(APIView):
     def post(self, request):
         if request.user.role != User.Role.SUPPLIER:
             return Response({'detail': 'Only suppliers can create worker accounts.'}, status=status.HTTP_403_FORBIDDEN)
-        required = ['username', 'password', 'phone']
+        required = ['name', 'username', 'password', 'phone']
         missing = [field for field in required if not request.data.get(field)]
         if missing:
-            return Response({'detail': 'Username, password and phone are required.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'detail': 'Имя, логин, пароль и телефон обязательны.'}, status=status.HTTP_400_BAD_REQUEST)
         if len(request.data['password']) < 8:
             return Response({'detail': 'Password must be at least 8 characters.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
@@ -389,9 +389,15 @@ class WorkerListCreateView(APIView):
             return Response({'detail': 'Некорректный оклад.'}, status=status.HTTP_400_BAD_REQUEST)
         worker = User.objects.create_user(
             username=request.data['username'], password=request.data['password'],
+            first_name=request.data['name'].strip(),
             email=request.data.get('email', ''), phone=phone, role=User.Role.SALES_REP,
             company_name=request.user.company_name, city=city, base_salary=base_salary,
-            business_supplier=request.user, is_phone_verified=True
+            business_supplier=request.user
+            # is_phone_verified intentionally left at its default (False) —
+            # the worker verifies their own phone the first time they log
+            # in, same flow every other account goes through. The supplier
+            # setting up this account doesn't have the worker's phone in
+            # hand to receive that code.
         )
         return Response(BusinessMemberSerializer(worker, context={'request': request}).data, status=status.HTTP_201_CREATED)
 
@@ -407,19 +413,27 @@ class WorkerDetailView(APIView):
         except User.DoesNotExist:
             return Response({'detail': 'Сотрудник не найден.'}, status=status.HTTP_404_NOT_FOUND)
 
+        update_fields = []
+
+        if 'name' in request.data and request.data['name']:
+            worker.first_name = request.data['name'].strip()
+            update_fields.append('first_name')
+
         for field in ('base_salary', 'bonus_sales_threshold', 'bonus_percent'):
             if field not in request.data:
                 continue
             raw = request.data[field]
             if raw in ('', None):
                 setattr(worker, field, None)
-                continue
-            try:
-                setattr(worker, field, Decimal(str(raw)))
-            except (InvalidOperation, ValueError):
-                return Response({'detail': f'Некорректное значение для поля {field}.'}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                try:
+                    setattr(worker, field, Decimal(str(raw)))
+                except (InvalidOperation, ValueError):
+                    return Response({'detail': f'Некорректное значение для поля {field}.'}, status=status.HTTP_400_BAD_REQUEST)
+            update_fields.append(field)
 
-        worker.save(update_fields=['base_salary', 'bonus_sales_threshold', 'bonus_percent'])
+        if update_fields:
+            worker.save(update_fields=update_fields)
         return Response(BusinessMemberSerializer(worker, context={'request': request}).data)
 
 
