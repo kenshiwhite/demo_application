@@ -92,6 +92,10 @@ class User(AbstractUser):
     # of `bonus_percent`% of their base_salary. Left blank = no rule set.
     bonus_sales_threshold = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     bonus_percent = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    # Only meaningful for role='supplier' — stock at or below this count is
+    # shown as "running low" across the app (product rows, home tab alerts).
+    # Defaults to 10 so existing suppliers keep the behavior they already had.
+    low_stock_threshold = models.PositiveIntegerField(default=10)
 
     def generate_verification_code(self):
         import random, string

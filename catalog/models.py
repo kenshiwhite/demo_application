@@ -48,6 +48,7 @@ class Product(models.Model):
     )
     unit = models.CharField(max_length=50)
     stock_quantity = models.PositiveIntegerField(default=0)
+    min_order_quantity = models.PositiveIntegerField(default=1)
     is_available = models.BooleanField(default=True)
     image = models.ImageField(upload_to='products/', null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

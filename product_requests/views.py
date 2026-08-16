@@ -144,6 +144,11 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
                     {'detail': f'Недостаточно товара "{product.name}". Доступно: {product.stock_quantity}'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            if quantity < product.min_order_quantity:
+                return Response(
+                    {'detail': f'Минимальный заказ для "{product.name}": {product.min_order_quantity} {product.unit}.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
         # calculate total
         total_price = sum(product.price * quantity for product, quantity in products)

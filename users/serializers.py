@@ -80,13 +80,22 @@ class ProfileSerializer(serializers.ModelSerializer):
             'is_email_verified', 'is_phone_verified', 'date_joined',
             'city', 'city_display', 'service_cities', 'service_cities_display',
             'business_supplier', 'business_supplier_name',
-            'assigned_sales_rep'
+            'assigned_sales_rep', 'low_stock_threshold'
         ]
         read_only_fields = [
             'id', 'username', 'role',
             'is_email_verified', 'is_phone_verified', 'date_joined',
             'business_supplier', 'assigned_sales_rep'
         ]
+
+    def to_representation(self, instance):
+        # A sales rep should see their supplier's configured threshold, not
+        # their own account's default — the setting belongs to the business,
+        # only the supplier can change it, but the whole team should use it.
+        data = super().to_representation(instance)
+        if instance.role == 'sales_rep' and instance.business_supplier_id:
+            data['low_stock_threshold'] = instance.business_supplier.low_stock_threshold
+        return data
 
     def validate_phone(self, value):
         phone = normalize_phone(value)
