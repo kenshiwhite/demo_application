@@ -26,6 +26,12 @@ class ProductViewSet(viewsets.ModelViewSet):
     filterset_class = ProductFilter
     search_fields = ['name', 'description']
     ordering_fields = ['price', 'created_at', 'stock_quantity']
+    # Every screen that fetches this list does client-side aggregation
+    # (stock alerts, calendar marking, per-client stats) assuming it has
+    # the complete set — same as every other list endpoint in this app
+    # (workers, clients, expenses, bonuses). Paginating just this one
+    # silently truncated suppliers with >20 products.
+    pagination_class = None
 
     def get_queryset(self):
         user = self.request.user

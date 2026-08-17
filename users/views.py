@@ -322,6 +322,7 @@ class UpdatePushTokenView(APIView):
 class SupplierListView(generics.ListAPIView):
     serializer_class = SupplierSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = None
 
     def get_queryset(self):
         qs = User.objects.filter(role='supplier')
