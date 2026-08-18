@@ -192,6 +192,16 @@ class BusinessMemberSerializer(serializers.ModelSerializer):
         return None
 
     def _current_month_sales(self, obj):
+        # Memoized per serializer instance (which processes every object in
+        # a list response) — without this, each of the 4 bonus-related
+        # fields below independently re-runs this same aggregate query for
+        # the same worker, turning a list of N workers into up to 4N
+        # redundant identical DB round trips.
+        if not hasattr(self, '_month_sales_cache'):
+            self._month_sales_cache = {}
+        if obj.id in self._month_sales_cache:
+            return self._month_sales_cache[obj.id]
+
         # Lazy import — product_requests imports users.models, so importing
         # product_requests.models at module load time here would risk a
         # circular import depending on app-loading order.
@@ -202,7 +212,9 @@ class BusinessMemberSerializer(serializers.ModelSerializer):
             sales_rep=obj, status='fulfilled',
             updated_at__year=now.year, updated_at__month=now.month,
         ).aggregate(total=Sum('total_price'))['total']
-        return total or Decimal('0')
+        result = total or Decimal('0')
+        self._month_sales_cache[obj.id] = result
+        return result
 
     def get_current_month_sales(self, obj):
         if self._is_owner(obj):

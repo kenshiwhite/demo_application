@@ -6,7 +6,7 @@ from .models import ProductRequest, RequestItem, SupplierResponse, RequestPhotoR
 from .serializers import ProductRequestSerializer, SupplierResponseSerializer, RequestPhotoReportSerializer
 from users.permissions import IsSupplier, IsClient, IsSupplierStaff
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from django.utils import timezone
 from notifications.services import (
     notify_supplier_new_request,
@@ -43,10 +43,16 @@ class ProductRequestViewSet(viewsets.ModelViewSet):
                 city = self.request.query_params.get('city')
                 if city:
                     qs = qs.filter(city=city)
-            return qs.prefetch_related('items__product').select_related('client', 'supplier', 'sales_rep', 'response')
+            return qs.prefetch_related(
+                'items__product',
+                Prefetch('photo_reports', queryset=RequestPhotoReport.objects.select_related('uploaded_by')),
+            ).select_related('client', 'supplier', 'sales_rep', 'response')
         return ProductRequest.objects.filter(
             client=user
-        ).prefetch_related('items__product').select_related('client', 'supplier', 'response')
+        ).prefetch_related(
+            'items__product',
+            Prefetch('photo_reports', queryset=RequestPhotoReport.objects.select_related('uploaded_by')),
+        ).select_related('client', 'supplier', 'response')
 
     def get_permissions(self):
         if self.action == 'create':

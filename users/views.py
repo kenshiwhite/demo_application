@@ -459,7 +459,7 @@ class BusinessClientListCreateView(APIView):
             city = request.user.city
 
         # CRM contacts a supplier/rep entered manually.
-        crm_clients = BusinessClient.objects.filter(supplier=business).annotate(request_count=Count('requests')).order_by('name')
+        crm_clients = BusinessClient.objects.filter(supplier=business).select_related('sales_rep').annotate(request_count=Count('requests')).order_by('name')
         if request.user.role == User.Role.SALES_REP:
             crm_clients = crm_clients.filter(sales_rep=request.user)
         if city:
@@ -474,7 +474,7 @@ class BusinessClientListCreateView(APIView):
         registered_ids = User.objects.filter(
             role=User.Role.CLIENT, requests__supplier=business
         ).values_list('id', flat=True).distinct()
-        registered_clients = User.objects.filter(id__in=registered_ids).annotate(
+        registered_clients = User.objects.filter(id__in=registered_ids).select_related('assigned_sales_rep').annotate(
             request_count=Count('requests', filter=Q(requests__supplier=business))
         ).order_by('username')
         if request.user.role == User.Role.SALES_REP:
